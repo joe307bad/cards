@@ -1,0 +1,33 @@
+{
+  "name": "webpack-babel-typescript-minimal-starter",
+  "version": "1.0.0",
+  "license": "MIT",
+  "author": "Joe Badaczewski",
+  "main": "index.js",
+  "scripts": {
+    "dev": "webpack serve"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.12.10",
+    "@babel/preset-env": "^7.12.11",
+    "@babel/preset-react": "^7.27.1",
+    "@babel/preset-typescript": "^7.12.7",
+    "@types/react": "^19.1.6",
+    "@types/react-dom": "^19.1.5",
+    "@types/three": "^0.176.0",
+    "babel-loader": "^8.2.2",
+    "fork-ts-checker-webpack-plugin": "^9.1.0",
+    "html-webpack-plugin": "^5.6.3",
+    "typescript": "^5.8.3",
+    "webpack": "5.94.0",
+    "webpack-cli": "^4.2.0",
+    "webpack-dev-server": "^3.11.0"
+  },
+  "dependencies": {
+    "@react-three/drei": "^10.0.8",
+    "@react-three/fiber": "^9.1.2",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "three": "^0.176.0"
+  }
+}
