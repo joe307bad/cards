@@ -1,7 +1,8 @@
-import React, {useState, useRef, useMemo} from 'react';
+import React, {useState, useRef, useMemo, useEffect} from 'react';
 import {Canvas, useFrame} from '@react-three/fiber';
 import {Text} from '@react-three/drei';
 import * as THREE from 'three';
+import { Button, Card as MTCard, Typography } from "@material-tailwind/react";
 
 interface PlayingCard {
     value: string;
@@ -24,26 +25,26 @@ function Card({isFlipped, card}: CardProps) {
             meshRef.current.rotation.y = THREE.MathUtils.lerp(
                 meshRef.current.rotation.y,
                 targetRotation,
-                0.1
+                0.06
             );
         }
     });
 
     return (
         <mesh ref={meshRef}>
-            {/* Front side - Card face */}
-            <planeGeometry args={[2.5, 3.5]}/>
-            <meshStandardMaterial color="white" side={THREE.FrontSide}/>
+            {/* Card thickness */}
+            <boxGeometry args={[2.5, 3.5, 0.05]}/>
+            <meshStandardMaterial color="#e5e5e5"/>
 
-            {/* Card border */}
-            <mesh position={[0, 0, 0.001]}>
-                <planeGeometry args={[2.4, 3.4]}/>
-                <meshStandardMaterial color="#f8f8f8" side={THREE.FrontSide}/>
+            {/* Front side - Card face */}
+            <mesh position={[0, 0, 0.026]}>
+                <planeGeometry args={[2.5, 3.5]}/>
+                <meshStandardMaterial color="white" side={THREE.FrontSide}/>
             </mesh>
 
             {/* Top left value and suit */}
             <Text
-                position={[-0.9, 1.3, 0.002]}
+                position={[-0.9, 1.3, 0.027]}
                 fontSize={0.3}
                 color={card.color}
                 anchorX="center"
@@ -52,7 +53,7 @@ function Card({isFlipped, card}: CardProps) {
                 {card.value}
             </Text>
             <Text
-                position={[-0.9, 1, 0.002]}
+                position={[-0.9, 0.9, 0.027]}
                 fontSize={0.4}
                 color={card.color}
                 anchorX="center"
@@ -63,7 +64,7 @@ function Card({isFlipped, card}: CardProps) {
 
             {/* Bottom right value and suit (rotated) */}
             <Text
-                position={[0.9, -1.3, 0.002]}
+                position={[0.9, -1.3, 0.027]}
                 fontSize={0.3}
                 color={card.color}
                 anchorX="center"
@@ -73,7 +74,7 @@ function Card({isFlipped, card}: CardProps) {
                 {card.value}
             </Text>
             <Text
-                position={[0.9, -1, 0.002]}
+                position={[0.9, -0.9, 0.027]}
                 fontSize={0.4}
                 color={card.color}
                 anchorX="center"
@@ -85,7 +86,7 @@ function Card({isFlipped, card}: CardProps) {
 
             {/* Center suit symbol */}
             <Text
-                position={[0, 0, 0.002]}
+                position={[0, 0, 0.027]}
                 fontSize={1.2}
                 color={card.color}
                 anchorX="center"
@@ -94,19 +95,8 @@ function Card({isFlipped, card}: CardProps) {
                 {card.symbol}
             </Text>
 
-            {/* Card name at bottom */}
-            <Text
-                position={[0, -0.5, 0.002]}
-                fontSize={0.15}
-                color="#666"
-                anchorX="center"
-                anchorY="middle"
-            >
-                {card.value} of {card.suit}
-            </Text>
-
             {/* Back side - Card back */}
-            <mesh position={[0, 0, -0.01]} rotation={[0, Math.PI, 0]}>
+            <mesh position={[0, 0, -0.026]} rotation={[0, Math.PI, 0]}>
                 <planeGeometry args={[2.5, 3.5]}/>
                 <meshStandardMaterial color="#1e40af" side={THREE.FrontSide}/>
 
@@ -124,7 +114,7 @@ function Card({isFlipped, card}: CardProps) {
                 {/* Decorative pattern */}
                 <Text
                     position={[0, 0.5, 0.003]}
-                    fontSize={0.3}
+                    fontSize={0.25}
                     color="#60a5fa"
                     anchorX="center"
                     anchorY="middle"
@@ -133,7 +123,7 @@ function Card({isFlipped, card}: CardProps) {
                 </Text>
                 <Text
                     position={[0, 0, 0.003]}
-                    fontSize={0.4}
+                    fontSize={0.35}
                     color="#93c5fd"
                     anchorX="center"
                     anchorY="middle"
@@ -142,7 +132,7 @@ function Card({isFlipped, card}: CardProps) {
                 </Text>
                 <Text
                     position={[0, -0.5, 0.003]}
-                    fontSize={0.3}
+                    fontSize={0.25}
                     color="#60a5fa"
                     anchorX="center"
                     anchorY="middle"
@@ -187,32 +177,42 @@ export default function PlayingCardFlip() {
 
     return (
         <div className="w-full h-screen bg-gradient-to-br from-green-800 to-green-900">
-            <div className="absolute top-4 left-4 z-10 space-x-3">
-                <button
+            <div className="absolute top-4 left-4 z-10 flex gap-3">
+                <Button
                     onClick={() => setIsFlipped(!isFlipped)}
-                    className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium shadow-lg"
+                    color="blue"
+                    variant="filled"
+                    className="font-medium shadow-lg"
+                    style={{borderRadius: 0}}
                 >
                     {isFlipped ? 'Show Face' : 'Show Back'}
-                </button>
-                <button
+                </Button>
+                <Button
                     onClick={handleNewCard}
-                    className="px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-medium shadow-lg"
+                    color="purple"
+                    variant="filled"
+                    className="font-medium shadow-lg"
+                    style={{borderRadius: 0}}
                 >
                     New Card
-                </button>
+                </Button>
             </div>
 
-            <div className="absolute top-4 right-4 z-10 bg-black bg-opacity-50 text-white px-4 py-2 rounded-lg">
-                <div className="text-sm font-medium">Current Card:</div>
-                <div className="text-lg" style={{color: currentCard.color}}>
-                    {currentCard.value} of {currentCard.suit} {currentCard.symbol}
-                </div>
+            <div className="absolute top-4 right-4 z-10">
+                <MTCard className="bg-opacity-50 px-4 py-2" style={{borderRadius: 0}}>
+                    <Typography variant="small" color="black" className="font-medium mb-1">
+                        Current Card:
+                    </Typography>
+                    <Typography variant="h6" color="white" style={{color: currentCard.color}}>
+                        {currentCard.value} of {currentCard.suit} {currentCard.symbol}
+                    </Typography>
+                </MTCard>
             </div>
 
             <Canvas camera={{position: [0, 0, 8]}}>
-                <ambientLight intensity={0.6}/>
-                <pointLight position={[10, 10, 10]} intensity={0.8}/>
-                <pointLight position={[-10, -10, 5]} intensity={0.3}/>
+                <ambientLight intensity={90}/>
+                {/*<pointLight position={[10, 10, 10]} intensity={0.8}/>*/}
+                {/*<pointLight position={[-10, -10, 5]} intensity={0.3}/>*/}
                 <Card isFlipped={isFlipped} card={currentCard}/>
             </Canvas>
         </div>
