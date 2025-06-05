@@ -1,9 +1,10 @@
 import React, { useEffect } from "react";
-import { useBlackjackActions, useBlackjackState } from "../services/App/AppHook";
+import { useBlackjackActions, useBlackjackState, useWsService } from "../services/App/AppHook";
 
 export function GameDebugger() {
     const actions = useBlackjackActions();
     const state = useBlackjackState();
+    const ws = useWsService();
 
     useEffect(() => {
         console.log("------------")
@@ -18,6 +19,11 @@ export function GameDebugger() {
         console.log("game state", state.gameStatus)
         console.log("-----------")
     }, [state.playerHand, state.dealerHand])
+
+
+    useEffect(() => {
+        ws.connect()
+    }, [])
 
     return (
         <>

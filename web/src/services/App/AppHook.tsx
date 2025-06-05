@@ -8,8 +8,14 @@ import {
     GameStateSnapshot,
 } from "./AppService"
 
+import {
+    GameWebSocketService,
+    gameWebSocketServiceLive,
+} from '../WebSocketService'
+
 type BlackjackContextType = {
     service: BlackjackService
+    ws: GameWebSocketService
 }
 
 const BlackjackContext = createContext<BlackjackContextType | null>(null)
@@ -20,7 +26,8 @@ interface BlackjackProviderProps {
 
 export const BlackjackProvider: React.FC<BlackjackProviderProps> = ({ children }) => {
     const value: BlackjackContextType = {
-        service: blackjackServiceLive
+        service: blackjackServiceLive,
+        ws: gameWebSocketServiceLive
     }
 
     return (
@@ -28,6 +35,20 @@ export const BlackjackProvider: React.FC<BlackjackProviderProps> = ({ children }
             {children}
         </BlackjackContext.Provider>
     )
+}
+
+const useWsService = () => {
+    const context = useContext(BlackjackContext)
+    if (!context) {
+        throw new Error("useWsService must be used within a BlackjackProvider")
+    }
+
+    const connect = async () => {
+        debugger;
+        await Effect.runPromise(context.ws.connect())
+    }
+
+    return { connect }
 }
 
 const useBlackjackService = (): BlackjackService => {
@@ -60,4 +81,4 @@ const useBlackjackActions = () => {
     return { newGame, hit, stand }
 }
 
-export { useBlackjackActions, useBlackjackState }
+export { useBlackjackActions, useBlackjackState, useWsService }

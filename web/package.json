@@ -5,7 +5,7 @@
   "author": "Joe Badaczewski",
   "main": "index.js",
   "scripts": {
-    "dev": "webpack serve"
+    "dev": "webpack serve --port 8081"
   },
   "devDependencies": {
     "@babel/core": "^7.12.10",
