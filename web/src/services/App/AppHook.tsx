@@ -3,14 +3,13 @@ import { Effect } from "effect"
 import { useSnapshot } from "valtio"
 import {
     BlackjackService,
-    blackjackServiceLive,
-    gameState,
-    GameStateSnapshot,
+    blackjackServiceLive
 } from "./AppService"
 
 import {
     GameWebSocketService,
     gameWebSocketServiceLive,
+    gameWebSocketState,
 } from '../WebSocketService'
 
 type BlackjackContextType = {
@@ -58,8 +57,8 @@ const useBlackjackService = (): BlackjackService => {
     return context.service
 }
 
-const useBlackjackState = (): GameStateSnapshot => {
-    return useSnapshot(gameState)
+const useBlackjackState = () => {
+    return useSnapshot(gameWebSocketState)
 }
 
 const useBlackjackActions = () => {

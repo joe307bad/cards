@@ -2,7 +2,7 @@ import React from 'react';
 import { createRoot } from 'react-dom/client';
 import { ThemeProvider } from "@material-tailwind/react";
 import './styles/index.css';
-import { GameDebugger } from './components/GameDebugger';
+import { App } from './App';
 import { BlackjackProvider } from './services/App/AppHook';
 
 const container = document.getElementById('root');
@@ -13,7 +13,7 @@ root.render(
     <React.StrictMode>
         <ThemeProvider>
             <BlackjackProvider>
-                <GameDebugger />
+                <App />
             </BlackjackProvider>
             {/* <FlipCard /> */}
         </ThemeProvider>

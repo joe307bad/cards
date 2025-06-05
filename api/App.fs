@@ -561,7 +561,7 @@ let startGameManager () =
                     printfn "❌ Error in game manager: %s" ex.Message),
             null,
             TimeSpan.Zero,
-            TimeSpan.FromSeconds 1.0 // Check twice per second for smooth timing
+            TimeSpan.FromSeconds 1.0
         )
 
     timer
@@ -646,7 +646,7 @@ let webApp =
 // Application Setup
 let configureApp (app: IApplicationBuilder) = 
     app.UseCors().UseWebSockets().UseGiraffe(webApp)
-    
+
 let configureServices (services: IServiceCollection) = 
     services.AddGiraffe().AddCors(fun options ->
         options.AddDefaultPolicy(fun builder ->

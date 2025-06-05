@@ -20,7 +20,7 @@ export interface GameState {
   dealerHand: Card[]
   dealerScore: number
   deck: Card[]
-  gameStatus: "playing" | "game_over"
+  gameStatus: "playing" | "game_ended"
 }
 
 export type GameStateSnapshot = {
@@ -86,14 +86,14 @@ const gameWebSocketServiceLive: GameWebSocketService = {
               gameWebSocketState.currentGameState = gameState
               
               // Log the game state every time we receive it
-              console.log("🎮 Game State Update:")
-              console.log(`📊 Timestamp: ${new Date(gameState.timestamp * 1000).toISOString()}`)
-              console.log(`🎯 Game Status: ${gameState.gameStatus}`)
-              console.log(`🃏 Cards in deck: ${gameState.deck.length}`)
-              console.log(`🏠 Dealer hand: ${gameState.dealerHand.length} cards, Score: ${gameState.dealerScore}`)
+              // console.log("🎮 Game State Update:")
+              // console.log(`📊 Timestamp: ${new Date(gameState.timestamp * 1000).toISOString()}`)
+              // console.log(`🎯 Game Status: ${gameState.gameStatus}`)
+              // console.log(`🃏 Cards in deck: ${gameState.deck.length}`)
+              // console.log(`🏠 Dealer hand: ${gameState.dealerHand.length} cards, Score: ${gameState.dealerScore}`)
               
               const playerCount = Object.keys(gameState.playerHands).length
-              console.log(`👥 Players: ${playerCount}`)
+              // console.log(`👥 Players: ${playerCount}`)
               
               for (const [userId, player] of Object.entries(gameState.playerHands)) {
                 console.log(`  Player ${userId}: ${player.cards.length} cards, Score: ${player.score}, State: ${player.state}`)

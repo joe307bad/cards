@@ -99,35 +99,6 @@ const httpServiceLive: HttpService = {
     })
 }
 
-export type Card = {
-  suit: "hearts" | "diamonds" | "clubs" | "spades"
-  rank: "A" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" | "10" | "J" | "Q" | "K"
-  value: number
-}
-
-export interface GameState {
-  playerHand: Card[]
-  dealerHand: Card[]
-  deck: Card[]
-  gameStatus: "playing" | "playerWins" | "dealerWins" | "push" | "playerBust" | "dealerBust"
-  playerScore: number
-  dealerScore: number
-}
-
-export type GameStateSnapshot = {
-  readonly [K in keyof GameState]: GameState[K] extends (infer U)[]
-  ? readonly U[]
-  : GameState[K]
-}
-
-const gameState = proxy<GameState>({
-  playerHand: [],
-  dealerHand: [],
-  deck: [],
-  gameStatus: "playing",
-  playerScore: 0,
-  dealerScore: 0
-})
 
 export interface BlackjackService {
   hit: (userId: string) => Effect.Effect<void, Error>
@@ -137,51 +108,6 @@ class BlackjackServiceTag extends Context.Tag("BlackjackService")<
   BlackjackServiceTag,
   BlackjackService
 >() { }
-
-const createDeck = (): Card[] => {
-  const suits: Card["suit"][] = ["hearts", "diamonds", "clubs", "spades"]
-  const ranks: Card["rank"][] = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"]
-  const deck: Card[] = []
-
-  for (const suit of suits) {
-    for (const rank of ranks) {
-      let value: number
-      if (rank === "A") value = 11
-      else if (["J", "Q", "K"].includes(rank)) value = 10
-      else value = parseInt(rank)
-
-      deck.push({ suit, rank, value })
-    }
-  }
-
-  return shuffleDeck(deck)
-}
-
-const shuffleDeck = (deck: Card[]): Card[] => {
-  const shuffled = [...deck]
-  for (let i = shuffled.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1))
-      ;[shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]]
-  }
-  return shuffled
-}
-
-const calculateScore = (hand: Card[]): number => {
-  let score = hand.reduce((sum, card) => sum + card.value, 0)
-  let aces = hand.filter(card => card.rank === "A").length
-
-  while (score > 21 && aces > 0) {
-    score -= 10
-    aces--
-  }
-
-  return score
-}
-
-const dealCard = (deck: Card[]): { card: Card; remainingDeck: Card[] } => {
-  const [card, ...remainingDeck] = deck
-  return { card, remainingDeck }
-}
 
 const blackjackServiceLive: BlackjackService = {
   hit: (userId: string) =>
@@ -214,7 +140,6 @@ export {
   httpServiceLive,
   BlackjackServiceTag,
   blackjackServiceLive,
-  gameState,
   setDebugMode,
   tryPromise
 }
