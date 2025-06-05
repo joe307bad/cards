@@ -21,6 +21,9 @@ export interface GameState {
   dealerScore: number
   deck: Card[]
   gameStatus: "playing" | "game_ended"
+  roundStartTime: number
+  roundEndTime: number
+  countdownTo: number
 }
 
 export type GameStateSnapshot = {

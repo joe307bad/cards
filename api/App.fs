@@ -17,12 +17,13 @@ open System.Collections.Concurrent
 open Microsoft.AspNetCore.Cors
 
 // Configuration
-type GameConfig = {
-    roundDurationSeconds: int
-    gameEndDisplaySeconds: int
-}
+type GameConfig =
+    { roundDurationSeconds: int
+      gameEndDisplaySeconds: int }
 
-let mutable gameConfig = { roundDurationSeconds = 10; gameEndDisplaySeconds = 5 }
+let mutable gameConfig =
+    { roundDurationSeconds = 10
+      gameEndDisplaySeconds = 5 }
 
 // Domain Types
 type Card =
@@ -43,6 +44,7 @@ type GameState =
       dealerScore: int
       deck: Card[]
       gameStatus: string // "playing", "dealer_turn", "game_ended", "waiting_for_new_round"
+      countdownTo: int64 option
       roundStartTime: int64
       roundEndTime: int64 option }
 
@@ -50,42 +52,41 @@ type GameAction = { ``type``: string; userId: string }
 
 // Logging utilities
 let logPlayerState (userId: string) (player: PlayerState) (action: string) =
-    let cardsStr = 
-        player.cards 
+    let cardsStr =
+        player.cards
         |> Array.map (fun c -> sprintf "%s%s" c.rank (c.suit.[0..0].ToUpper()))
         |> String.concat ", "
-    
-    let resultStr = 
+
+    let resultStr =
         match player.result with
         | Some r -> sprintf " [Result: %s]" r
         | None -> ""
-    
-    printfn "🎲 Player %s %s: Cards=[%s] Score=%d State=%s%s" 
-        userId action cardsStr player.score player.state resultStr
+
+    printfn "🎲 Player %s %s: Cards=[%s] Score=%d State=%s%s" userId action cardsStr player.score player.state resultStr
 
 let logAllPlayersState (gameState: GameState) (context: string) =
     printfn "📊 %s - All Players Status:" context
+
     gameState.playerHands
     |> Map.iter (fun userId player ->
-        let cardsStr = 
-            player.cards 
+        let cardsStr =
+            player.cards
             |> Array.map (fun c -> sprintf "%s%s" c.rank (c.suit.[0..0].ToUpper()))
             |> String.concat ", "
-        
-        let resultStr = 
+
+        let resultStr =
             match player.result with
             | Some r -> sprintf " [%s]" r
             | None -> ""
-        
-        printfn "   👤 %s: [%s] Score=%d State=%s%s" 
-            userId cardsStr player.score player.state resultStr)
+
+        printfn "   👤 %s: [%s] Score=%d State=%s%s" userId cardsStr player.score player.state resultStr)
 
 let logDealerState (dealerHand: Card[]) (dealerScore: int) (context: string) =
-    let cardsStr = 
-        dealerHand 
+    let cardsStr =
+        dealerHand
         |> Array.map (fun c -> sprintf "%s%s" c.rank (c.suit.[0..0].ToUpper()))
         |> String.concat ", "
-    
+
     printfn "🏠 Dealer %s: [%s] Score=%d" context cardsStr dealerScore
 
 let logGameStateTransition (oldStatus: string) (newStatus: string) (context: string) =
@@ -98,7 +99,7 @@ let logRoundCountdown (gameState: GameState) =
         let now = DateTimeOffset.UtcNow.ToUnixTimeSeconds()
         let roundDuration = int64 gameConfig.roundDurationSeconds
         let timeRemaining = (gameState.roundStartTime + roundDuration) - now
-        
+
         if timeRemaining > 0 then
             printfn "⏱️  Round countdown: %d seconds remaining" timeRemaining
         elif timeRemaining = 0 then
@@ -159,17 +160,18 @@ let createInitialGameState () =
     let now = DateTimeOffset.UtcNow.ToUnixTimeSeconds()
     let fullDeck = createDeck () |> List.toArray
     let (dealerCards, dealerScore, remainingDeck) = dealInitialCards fullDeck
-    
+
     printfn "🆕 Creating new game state with %d cards in deck" remainingDeck.Length
     logDealerState dealerCards dealerScore "Initial Deal"
     printfn "⏱️  New round started - %d seconds on the clock" gameConfig.roundDurationSeconds
-    
+
     { timestamp = now
       playerHands = Map.empty
       dealerHand = dealerCards
       dealerScore = dealerScore
       deck = remainingDeck
       gameStatus = "playing"
+      countdownTo = None
       roundStartTime = now
       roundEndTime = None }
 
@@ -231,10 +233,15 @@ let saveGameConfig (config: GameConfig) =
     use connection = new SqliteConnection(connectionString)
     connection.Open()
 
-    let sql = "INSERT OR REPLACE INTO game_config (id, round_duration_seconds, game_end_display_seconds) VALUES (1, @round, @display)"
+    let sql =
+        "INSERT OR REPLACE INTO game_config (id, round_duration_seconds, game_end_display_seconds) VALUES (1, @round, @display)"
+
     use command = new SqliteCommand(sql, connection)
     command.Parameters.AddWithValue("@round", config.roundDurationSeconds) |> ignore
-    command.Parameters.AddWithValue("@display", config.gameEndDisplaySeconds) |> ignore
+
+    command.Parameters.AddWithValue("@display", config.gameEndDisplaySeconds)
+    |> ignore
+
     command.ExecuteNonQuery() |> ignore
 
 let loadGameConfig () =
@@ -242,21 +249,24 @@ let loadGameConfig () =
     use connection = new SqliteConnection(connectionString)
     connection.Open()
 
-    let sql = "SELECT round_duration_seconds, game_end_display_seconds FROM game_config WHERE id = 1"
+    let sql =
+        "SELECT round_duration_seconds, game_end_display_seconds FROM game_config WHERE id = 1"
+
     use command = new SqliteCommand(sql, connection)
-    
+
     match command.ExecuteReader() with
     | reader when reader.Read() ->
         { roundDurationSeconds = reader.GetInt32(0)
           gameEndDisplaySeconds = reader.GetInt32(1) }
-    | _ -> { roundDurationSeconds = 10; gameEndDisplaySeconds = 5 }
+    | _ ->
+        { roundDurationSeconds = 10
+          gameEndDisplaySeconds = 5 }
 
 let dealCard (gameState: GameState) =
     if gameState.deck.Length > 0 then
         let card = gameState.deck.[0]
         let newDeck = gameState.deck.[1..]
-        printfn "🃏 Dealing card: %s%s (Remaining deck: %d cards)" 
-            card.rank (card.suit.[0..0].ToUpper()) newDeck.Length
+        printfn "🃏 Dealing card: %s%s (Remaining deck: %d cards)" card.rank (card.suit.[0..0].ToUpper()) newDeck.Length
         Some(card, { gameState with deck = newDeck })
     else
         printfn "⚠️ Cannot deal card - deck is empty!"
@@ -264,7 +274,7 @@ let dealCard (gameState: GameState) =
 
 let processHit (gameState: GameState) (userId: string) =
     printfn "🎯 Processing HIT for player %s (Game Status: %s)" userId gameState.gameStatus
-    
+
     // Reject hits if game is not in playing state
     if gameState.gameStatus <> "playing" then
         printfn "❌ Hit rejected - game not in playing state"
@@ -281,8 +291,7 @@ let processHit (gameState: GameState) (userId: string) =
                       state = "playing"
                       result = None }
 
-            printfn "📋 Player %s before hit: %d cards, score %d" 
-                userId currentPlayer.cards.Length currentPlayer.score
+            printfn "📋 Player %s before hit: %d cards, score %d" userId currentPlayer.cards.Length currentPlayer.score
 
             let newCards = Array.append currentPlayer.cards [| card |]
             let newScore = calculateScore newCards
@@ -302,22 +311,22 @@ let processHit (gameState: GameState) (userId: string) =
 
             let updatedHands = newGameState.playerHands |> Map.add userId updatedPlayer
 
-            let finalGameState = 
+            let finalGameState =
                 { newGameState with
                     playerHands = updatedHands
                     timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds() }
-            
+
             // Log all players after this action
             logAllPlayersState finalGameState "After Hit Action"
-            
+
             finalGameState
-        | None -> 
+        | None ->
             printfn "❌ Hit failed - no cards available"
             gameState
 
 let processStand (gameState: GameState) (userId: string) =
     printfn "🛑 Processing STAND for player %s (Game Status: %s)" userId gameState.gameStatus
-    
+
     // Reject stands if game is not in playing state
     if gameState.gameStatus <> "playing" then
         printfn "❌ Stand rejected - game not in playing state"
@@ -332,24 +341,27 @@ let processStand (gameState: GameState) (userId: string) =
                   state = "playing"
                   result = None }
 
-        let updatedPlayer = { currentPlayer with state = "standing" }
+        let updatedPlayer =
+            { currentPlayer with
+                state = "standing" }
+
         logPlayerState userId updatedPlayer "STAND"
-        
+
         let updatedHands = gameState.playerHands |> Map.add userId updatedPlayer
 
-        let finalGameState = 
+        let finalGameState =
             { gameState with
                 playerHands = updatedHands
                 timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds() }
-        
+
         // Log all players after this action
         logAllPlayersState finalGameState "After Stand Action"
-        
+
         finalGameState
 
 let forceAllPlayersToStand (gameState: GameState) =
     printfn "⏰ Forcing all playing players to stand (round timeout)"
-    
+
     let updatedHands =
         gameState.playerHands
         |> Map.map (fun userId player ->
@@ -358,8 +370,11 @@ let forceAllPlayersToStand (gameState: GameState) =
                 { player with state = "standing" }
             else
                 player)
-    
-    let finalGameState = { gameState with playerHands = updatedHands }
+
+    let finalGameState =
+        { gameState with
+            playerHands = updatedHands }
+
     logAllPlayersState finalGameState "After Forcing All to Stand"
     finalGameState
 
@@ -368,20 +383,20 @@ let dealerHit (gameState: GameState) =
     | Some(card, newGameState) ->
         let newDealerHand = Array.append newGameState.dealerHand [| card |]
         let newDealerScore = calculateScore newDealerHand
-        
+
         logDealerState newDealerHand newDealerScore "after HIT"
-        
+
         { newGameState with
             dealerHand = newDealerHand
             dealerScore = newDealerScore }
-    | None -> 
+    | None ->
         printfn "❌ Dealer hit failed - no cards available"
         gameState
 
 let playDealerTurn (gameState: GameState) =
     printfn "🏠 Starting dealer turn"
     logDealerState gameState.dealerHand gameState.dealerScore "Initial"
-    
+
     let rec dealerPlay state =
         if state.dealerScore < 17 then
             printfn "🏠 Dealer must hit (score %d < 17)" state.dealerScore
@@ -390,7 +405,7 @@ let playDealerTurn (gameState: GameState) =
         else
             printfn "🏠 Dealer stands (score %d >= 17)" state.dealerScore
             state
-    
+
     // Only play dealer turn if dealer doesn't already have 21 (blackjack)
     if gameState.dealerScore = 21 then
         printfn "🏠 Dealer has blackjack - no additional cards needed"
@@ -405,13 +420,14 @@ let calculateResults (gameState: GameState) =
     let dealerScore = gameState.dealerScore
     let dealerBust = dealerScore > 21
     let dealerBlackjack = dealerScore = 21 && gameState.dealerHand.Length = 2
-    
+
     printfn "🏠 Dealer final: Score=%d Bust=%b Blackjack=%b" dealerScore dealerBust dealerBlackjack
-    
+
     let updatedHands =
         gameState.playerHands
         |> Map.map (fun userId player ->
             let playerBlackjack = player.score = 21 && player.cards.Length = 2
+
             let result =
                 match player.state with
                 | "bust" -> Some "loss"
@@ -422,17 +438,26 @@ let calculateResults (gameState: GameState) =
                 | _ when player.score > dealerScore && player.score <= 21 -> Some "win"
                 | _ when player.score = dealerScore && player.score <= 21 -> Some "push"
                 | _ -> Some "loss"
-            
+
             let updatedPlayer = { player with result = result }
-            
+
             // Log individual result calculation
-            printfn "🎯 %s: Score=%d PlayerBJ=%b DealerBJ=%b -> %s" 
-                userId player.score playerBlackjack dealerBlackjack 
-                (match result with Some r -> r | None -> "unknown")
-            
+            printfn
+                "🎯 %s: Score=%d PlayerBJ=%b DealerBJ=%b -> %s"
+                userId
+                player.score
+                playerBlackjack
+                dealerBlackjack
+                (match result with
+                 | Some r -> r
+                 | None -> "unknown")
+
             updatedPlayer)
-    
-    let finalGameState = { gameState with playerHands = updatedHands }
+
+    let finalGameState =
+        { gameState with
+            playerHands = updatedHands }
+
     logAllPlayersState finalGameState "Final Results"
     finalGameState
 
@@ -440,10 +465,14 @@ let shouldEndRound (gameState: GameState) =
     let now = DateTimeOffset.UtcNow.ToUnixTimeSeconds()
     let roundDuration = int64 gameConfig.roundDurationSeconds
     let timeRemaining = (gameState.roundStartTime + roundDuration) - now
-    
+
     if timeRemaining <= 0 && gameState.gameStatus = "playing" then
-        printfn "⏰ Round should end - time expired (started at %d, duration %d, now %d)" 
-            gameState.roundStartTime roundDuration now
+        printfn
+            "⏰ Round should end - time expired (started at %d, duration %d, now %d)"
+            gameState.roundStartTime
+            roundDuration
+            now
+
         true
     else
         false
@@ -451,21 +480,21 @@ let shouldEndRound (gameState: GameState) =
 let processRoundEnd (gameState: GameState) =
     printfn "🏁 Processing round end"
     let oldStatus = gameState.gameStatus
-    
+
     let stateAfterStand = forceAllPlayersToStand gameState
     let stateAfterDealer = playDealerTurn stateAfterStand
     let stateWithResults = calculateResults stateAfterDealer
     let now = DateTimeOffset.UtcNow.ToUnixTimeSeconds()
-    
-    let finalState = 
+
+    let finalState =
         { stateWithResults with
             gameStatus = "game_ended"
             roundEndTime = Some now
             timestamp = now }
-    
+
     logGameStateTransition oldStatus finalState.gameStatus "Round End"
     printfn "🏁 Round ended at %d, results display until %d" now (now + int64 gameConfig.gameEndDisplaySeconds)
-    
+
     finalState
 
 let shouldStartNewRound (gameState: GameState) =
@@ -474,10 +503,14 @@ let shouldStartNewRound (gameState: GameState) =
         let now = DateTimeOffset.UtcNow.ToUnixTimeSeconds()
         let displayDuration = int64 gameConfig.gameEndDisplaySeconds
         let shouldStart = now >= (endTime + displayDuration)
-        
+
         if shouldStart && gameState.gameStatus = "game_ended" then
-            printfn "🔄 Should start new round - display period ended (ended at %d, display %d, now %d)" 
-                endTime displayDuration now
+            printfn
+                "🔄 Should start new round - display period ended (ended at %d, display %d, now %d)"
+                endTime
+                displayDuration
+                now
+
             true
         else
             false
@@ -520,7 +553,7 @@ let broadcastToAll (message: string) =
 
 // Game State Management with Automatic Rounds
 let mutable private cachedGameState = loadGameState ()
-let private gameStateLock = obj()
+let private gameStateLock = obj ()
 
 let getCachedGameState () = cachedGameState
 
@@ -530,31 +563,50 @@ let updateGameState (updateFn: GameState -> GameState) =
         let newState = updateFn currentState
         saveGameState newState
         cachedGameState <- newState
-        newState
-    )
+        newState)
+
+
+// Calculate countdownTo timestamp based on game state
+let calculateCountdownTo (gameState: GameState) =
+    let now = DateTimeOffset.UtcNow.ToUnixTimeSeconds()
+
+    match gameState.gameStatus with
+    | "playing" ->
+        // Countdown to round end
+        gameState.roundStartTime + int64 gameConfig.roundDurationSeconds
+    | "game_ended" ->
+        // Countdown to next round start
+        match gameState.roundEndTime with
+        | Some endTime -> endTime + int64 gameConfig.gameEndDisplaySeconds
+        | None -> now + int64 gameConfig.gameEndDisplaySeconds
+    | _ ->
+        // Default fallback
+        now
 
 // Background Service for Game Management
 let startGameManager () =
     printfn "🎮 Starting game manager background service"
-    
+
     let timer =
         new Timer(
             (fun _ ->
                 try
-                    let currentState = updateGameState (fun state ->
-                        // Log countdown for active rounds
-                        logRoundCountdown state
-                        
-                        match state.gameStatus with
-                        | "playing" when shouldEndRound state ->
-                            processRoundEnd state
-                        | "game_ended" when shouldStartNewRound state ->
-                            startNewRound ()
-                        | _ -> state
-                    )
-                    
+                    let currentState =
+                        updateGameState (fun state ->
+                            // Log countdown for active rounds
+                            logRoundCountdown state
+
+                            match state.gameStatus with
+                            | "playing" when shouldEndRound state -> processRoundEnd state
+                            | "game_ended" when shouldStartNewRound state -> startNewRound ()
+                            | _ -> state)
+
                     // Always broadcast current state
-                    let stateWithCurrentTime = { currentState with timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds() }
+                    let stateWithCurrentTime =
+                        { currentState with
+                            timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds()
+                            countdownTo = Some(calculateCountdownTo currentState) }
+
                     let json = JsonConvert.SerializeObject(stateWithCurrentTime)
                     broadcastToAll json
                 with ex ->
@@ -572,18 +624,18 @@ let gameActionHandler: HttpHandler =
         task {
             let! body = ctx.ReadBodyFromRequestAsync()
             let action = JsonConvert.DeserializeObject<GameAction>(body)
-            
+
             printfn "🎮 Received game action: %s from user %s" action.``type`` action.userId
-            
-            let newGameState = updateGameState (fun state ->
-                match action.``type`` with
-                | "hit" -> processHit state action.userId
-                | "stand" -> processStand state action.userId
-                | _ -> 
-                    printfn "❌ Unknown action type: %s" action.``type``
-                    state
-            )
-            
+
+            let newGameState =
+                updateGameState (fun state ->
+                    match action.``type`` with
+                    | "hit" -> processHit state action.userId
+                    | "stand" -> processStand state action.userId
+                    | _ ->
+                        printfn "❌ Unknown action type: %s" action.``type``
+                        state)
+
             return! json {| success = true |} next ctx
         }
 
@@ -592,17 +644,19 @@ let configHandler: HttpHandler =
         task {
             let! body = ctx.ReadBodyFromRequestAsync()
             let newConfig = JsonConvert.DeserializeObject<GameConfig>(body)
-            printfn "⚙️ Config updated: Round=%ds, Display=%ds" newConfig.roundDurationSeconds newConfig.gameEndDisplaySeconds
+
+            printfn
+                "⚙️ Config updated: Round=%ds, Display=%ds"
+                newConfig.roundDurationSeconds
+                newConfig.gameEndDisplaySeconds
+
             gameConfig <- newConfig
             saveGameConfig newConfig
             return! json {| success = true; config = newConfig |} next ctx
         }
 
 let getConfigHandler: HttpHandler =
-    fun next ctx ->
-        task {
-            return! json gameConfig next ctx
-        }
+    fun next ctx -> task { return! json gameConfig next ctx }
 
 let webSocketHandler: HttpHandler =
     fun next ctx ->
@@ -644,24 +698,25 @@ let webApp =
           GET >=> route "/" >=> text "F# Blackjack Server with Automatic Rounds" ]
 
 // Application Setup
-let configureApp (app: IApplicationBuilder) = 
+let configureApp (app: IApplicationBuilder) =
     app.UseCors().UseWebSockets().UseGiraffe(webApp)
 
-let configureServices (services: IServiceCollection) = 
-    services.AddGiraffe().AddCors(fun options ->
-        options.AddDefaultPolicy(fun builder ->
-            builder.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader() |> ignore
-        )
-    ) |> ignore
+let configureServices (services: IServiceCollection) =
+    services
+        .AddGiraffe()
+        .AddCors(fun options ->
+            options.AddDefaultPolicy(fun builder ->
+                builder.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader() |> ignore))
+    |> ignore
 
 [<EntryPoint>]
 let main args =
     printfn "🚀 Starting F# Blackjack Server"
-    
+
     // Initialize database
     printfn "💾 Initializing database"
     initDatabase ()
-    
+
     // Load configuration
     printfn "⚙️ Loading configuration"
     gameConfig <- loadGameConfig ()
@@ -673,6 +728,7 @@ let main args =
 
     // Create and run web host
     printfn "🌐 Starting web server on http://0.0.0.0:8080"
+
     Host
         .CreateDefaultBuilder(args)
         .ConfigureWebHostDefaults(fun webHostBuilder ->

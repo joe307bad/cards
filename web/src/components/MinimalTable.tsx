@@ -1,9 +1,30 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useBlackjackState } from '../services/App/AppHook';
 
 export default function MinimalTable(props: { gameState: ReturnType<typeof useBlackjackState>, hit: () => void, stand: () => void }) {
   const gameState = props.gameState.currentGameState;
+  const [countdown, setCountdown] = useState(0);
+  
   const formatCard = (card) => `${card.rank}${card.suit[0].toUpperCase()}`;
+  
+  // Update countdown every second
+  useEffect(() => {
+    // @ts-ignore
+    if (!gameState?.countdownTo?.Fields?.[0]) return;
+    
+    const updateCountdown = () => {
+      const now = Math.floor(Date.now() / 1000);
+      // @ts-ignore
+      const targetTime = gameState.countdownTo.Fields[0];
+      const remaining = Math.max(0, targetTime - now);
+      setCountdown(remaining);
+    };
+    
+    updateCountdown(); // Initial update
+    const interval = setInterval(updateCountdown, 1000);
+    
+    return () => clearInterval(interval);
+  }, [gameState?.countdownTo]);
   
   if (!gameState) {
     return null;
@@ -11,6 +32,9 @@ export default function MinimalTable(props: { gameState: ReturnType<typeof useBl
 
   // Helper function to determine dealer status
   const getDealerStatus = () => {
+    if (gameState.dealerScore === 21) {
+      return { text: "BLACKJACK!", color: "text-yellow-300" };
+    }
     if (gameState.dealerScore > 21) {
       return { text: "BUST!", color: "text-red-300" };
     }
@@ -22,6 +46,9 @@ export default function MinimalTable(props: { gameState: ReturnType<typeof useBl
 
   // Helper function to determine player status
   const getPlayerStatus = (hand) => {
+    if (hand.score === 21) {
+      return { text: "BLACKJACK!", color: "text-yellow-300" };
+    }
     if (hand.score > 21) {
       return { text: "BUST!", color: "text-red-300" };
     }
@@ -42,10 +69,32 @@ export default function MinimalTable(props: { gameState: ReturnType<typeof useBl
   };
 
   const dealerStatus = getDealerStatus();
+  
+  // Get countdown display text
+  const getCountdownText = () => {
+    // @ts-ignore
+    if (!gameState.countdownTo?.Fields?.[0]) return null;
+    
+    if (gameState.gameStatus === 'playing') {
+      return `Round ends in: ${countdown}s`;
+    } else if (gameState.gameStatus === 'game_ended') {
+      return `Next round in: ${countdown}s`;
+    }
+    return null;
+  };
+  
+  const countdownText = getCountdownText();
 
   return (
     <div className="p-6 bg-green-800 text-white max-w-2xl mx-auto rounded-lg">
-      <h2 className="text-xl font-bold mb-4">Blackjack Game</h2>
+      <div className="flex justify-between items-center mb-4">
+        <h2 className="text-xl font-bold">Blackjack Game</h2>
+        {countdownText && (
+          <div className="text-sm bg-black bg-opacity-30 px-3 py-1 rounded">
+            {countdownText}
+          </div>
+        )}
+      </div>
       
       <div className="flex gap-6">
         {/* Game Area */}
