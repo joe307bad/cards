@@ -58,7 +58,6 @@ class GameWebSocketServiceTag extends Context.Tag("GameWebSocketService")<
 // WebSocket Service Implementation
 const gameWebSocketServiceLive: GameWebSocketService = {
   connect: (url?: string) => {
-    debugger;
     const wsUrl = url || gameWebSocketState.connectionUrl
     
     return Effect.gen(function* () {
@@ -69,14 +68,12 @@ const gameWebSocketServiceLive: GameWebSocketService = {
           const ws = new WebSocket(wsUrl)
           
           ws.onopen = () => {
-            debugger;
             gameWebSocketState.isConnected = true
             gameWebSocketState.lastError = null
             resume(Effect.succeed(void 0))
           }
           
           ws.onerror = (error) => {
-            debugger;
             gameWebSocketState.isConnected = false
             const errorObj = new Error(`WebSocket error: ${error}`)
             gameWebSocketState.lastError = errorObj
@@ -85,7 +82,6 @@ const gameWebSocketServiceLive: GameWebSocketService = {
           
           ws.onmessage = (event) => {
             try {
-              debugger;
               const gameState = JSON.parse(event.data) as GameState
               gameWebSocketState.currentGameState = gameState
               

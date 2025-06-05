@@ -44,7 +44,6 @@ const useWsService = () => {
     }
 
     const connect = async () => {
-        debugger;
         await Effect.runPromise(context.ws.connect())
     }
 
@@ -67,15 +66,15 @@ const useBlackjackActions = () => {
     const service = useBlackjackService()
 
     const newGame = async () => {
-        await Effect.runPromise(service.newGame())
+        // await Effect.runPromise(service.newGame())
     }
 
     const hit = async () => {
-        await Effect.runPromise(service.hit())
+        await Effect.runPromise(service.hit("player-1"))
     }
 
     const stand = async () => {
-        await Effect.runPromise(service.stand())
+        // await Effect.runPromise(service.stand())
     }
 
     return { newGame, hit, stand }

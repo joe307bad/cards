@@ -130,10 +130,7 @@ const gameState = proxy<GameState>({
 })
 
 export interface BlackjackService {
-  readonly newGame: () => Effect.Effect<void>
-  readonly hit: () => Effect.Effect<void>
-  readonly stand: () => Effect.Effect<void>
-  readonly getGameState: () => Effect.Effect<GameState>
+  hit: (userId: string) => Effect.Effect<void, Error>
 }
 
 class BlackjackServiceTag extends Context.Tag("BlackjackService")<
@@ -187,66 +184,29 @@ const dealCard = (deck: Card[]): { card: Card; remainingDeck: Card[] } => {
 }
 
 const blackjackServiceLive: BlackjackService = {
-  newGame: () =>
-    Effect.sync(() => {
-      debugger;
-      const deck = createDeck()
-
-      // Deal initial cards
-      const { card: playerCard1, remainingDeck: deck1 } = dealCard(deck)
-      const { card: dealerCard1, remainingDeck: deck2 } = dealCard(deck1)
-      const { card: playerCard2, remainingDeck: deck3 } = dealCard(deck2)
-      const { card: dealerCard2, remainingDeck: finalDeck } = dealCard(deck3)
-
-      gameState.playerHand = [playerCard1, playerCard2]
-      gameState.dealerHand = [dealerCard1, dealerCard2]
-      gameState.deck = finalDeck
-      gameState.playerScore = calculateScore(gameState.playerHand)
-      gameState.dealerScore = calculateScore(gameState.dealerHand)
-      gameState.gameStatus = "playing"
-    }),
-
-  hit: () =>
-    Effect.sync(() => {
-      debugger;
-      if (gameState.gameStatus !== "playing") return
-
-      const { card, remainingDeck } = dealCard(gameState.deck)
-      gameState.playerHand.push(card)
-      gameState.deck = remainingDeck
-      gameState.playerScore = calculateScore(gameState.playerHand)
-
-      if (gameState.playerScore > 21) {
-        gameState.gameStatus = "playerBust"
-      }
-    }),
-
-  stand: () =>
-    Effect.sync(() => {
-      if (gameState.gameStatus !== "playing") return
-
-      // Dealer hits until 17 or higher
-      while (gameState.dealerScore < 17) {
-        const { card, remainingDeck } = dealCard(gameState.deck)
-        gameState.dealerHand.push(card)
-        gameState.deck = remainingDeck
-        gameState.dealerScore = calculateScore(gameState.dealerHand)
-      }
-
-      // Determine winner
-      if (gameState.dealerScore > 21) {
-        gameState.gameStatus = "dealerBust"
-      } else if (gameState.playerScore > gameState.dealerScore) {
-        gameState.gameStatus = "playerWins"
-      } else if (gameState.dealerScore > gameState.playerScore) {
-        gameState.gameStatus = "dealerWins"
-      } else {
-        gameState.gameStatus = "push"
-      }
-    }),
-
-  getGameState: () =>
-    Effect.succeed(gameState)
+  hit: (userId: string) =>
+    Effect.tryPromise({
+      try: async () => {
+        const response = await fetch('http://localhost:8080/game-action', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            type: 'hit',
+            userId: userId
+          })
+        })
+        
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`)
+        }
+        
+        const result = await response.json()
+        console.log('Hit action result:', result)
+      },
+      catch: (error) => new Error(`Failed to hit: ${error}`)
+    })
 }
 
 export {
