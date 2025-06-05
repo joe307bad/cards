@@ -219,7 +219,9 @@ let startGameStateBroadcaster () =
             (fun _ ->
                 try
                     let gameState = loadGameState ()
-                    let json = JsonConvert.SerializeObject(gameState)
+                    // Update timestamp to current server time before broadcasting
+                    let gameStateWithCurrentTime = { gameState with timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds() }
+                    let json = JsonConvert.SerializeObject(gameStateWithCurrentTime)
                     broadcastToAll json
                 with ex ->
                     printfn "Error broadcasting game state: %s" ex.Message),
