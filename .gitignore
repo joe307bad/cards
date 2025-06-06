@@ -1,6 +1,7 @@
 api/bin/
 api/obj/
 api/blackjack.db
+api/wwwroot
 .idea/.gitignore
 .idea/deck.iml
 .idea/modules.xml

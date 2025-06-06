@@ -84,7 +84,8 @@ const useWsService = () => {
     }
 
     const connect = async () => {
-        await Effect.runPromise(context.ws.connect())
+        //@ts-ignore
+        await Effect.runPromise(context.ws.connect(process.env.URL))
     }
 
     return { connect }
@@ -111,7 +112,8 @@ const useBlackjackActions = () => {
     }
 
     const hit = async () => {
-        await Effect.runPromise(service.hit(context.playerName))
+        //@ts-ignore
+        await Effect.runPromise(service.hit(process.env.URL, context.playerName))
     }
 
     return {

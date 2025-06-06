@@ -43,7 +43,7 @@ type GameState =
       dealerHand: Card[]
       dealerScore: int
       deck: Card[]
-      gameStatus: string // "playing", "dealer_turn", "game_ended", "waiting_for_new_round"
+      gameStatus: string // "playing", "game_ended"
       countdownTo: int64 option
       roundStartTime: int64
       roundEndTime: int64 option }
@@ -186,24 +186,30 @@ let initDatabase () =
     let connectionString = sprintf "Data Source=%s" (getDbPath ())
     use connection = new SqliteConnection(connectionString)
     connection.Open()
-
-    let createTableSql =
+    
+    let createGameStateTable =
         """
         CREATE TABLE IF NOT EXISTS game_state (
             id INTEGER PRIMARY KEY,
             data TEXT NOT NULL,
             updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
         );
-        
+        """
+    
+    let createGameConfigTable =
+        """
         CREATE TABLE IF NOT EXISTS game_config (
             id INTEGER PRIMARY KEY,
             round_duration_seconds INTEGER NOT NULL DEFAULT 10,
             game_end_display_seconds INTEGER NOT NULL DEFAULT 5
         );
-    """
+        """
 
-    use command = new SqliteCommand(createTableSql, connection)
-    command.ExecuteNonQuery() |> ignore
+    use command1 = new SqliteCommand(createGameStateTable, connection)
+    command1.ExecuteNonQuery() |> ignore
+    
+    use command2 = new SqliteCommand(createGameConfigTable, connection)
+    command2.ExecuteNonQuery() |> ignore
 
 let saveGameState (gameState: GameState) =
     let connectionString = sprintf "Data Source=%s" (getDbPath ())
@@ -552,11 +558,11 @@ let broadcastToAll (message: string) =
         Task.WaitAll(tasks)
 
 // Game State Management with Automatic Rounds
-let mutable private cachedGameState = loadGameState ()
+let mutable private cachedGameState = Unchecked.defaultof<GameState> // Initialize with default value
 let private gameStateLock = obj ()
 
 let getCachedGameState () = cachedGameState
-
+ 
 let updateGameState (updateFn: GameState -> GameState) =
     lock gameStateLock (fun () ->
         let currentState = loadGameState ()
@@ -565,6 +571,9 @@ let updateGameState (updateFn: GameState -> GameState) =
         cachedGameState <- newState
         newState)
 
+// Add this new function to safely initialize the cached state
+let initializeCachedGameState () =
+    cachedGameState <- loadGameState ()
 
 // Calculate countdownTo timestamp based on game state
 let calculateCountdownTo (gameState: GameState) =
@@ -695,11 +704,12 @@ let webApp =
           POST >=> route "/game-action" >=> gameActionHandler
           POST >=> route "/config" >=> configHandler
           GET >=> route "/config" >=> getConfigHandler
-          GET >=> route "/" >=> text "F# Blackjack Server with Automatic Rounds" ]
+          GET >=> route "/health" >=> text "OK"
+          GET >=> route "/" >=> htmlFile "wwwroot/index.html" ]
 
 // Application Setup
 let configureApp (app: IApplicationBuilder) =
-    app.UseCors().UseWebSockets().UseGiraffe(webApp)
+    app.UseCors().UseWebSockets().UseStaticFiles().UseGiraffe(webApp)
 
 let configureServices (services: IServiceCollection) =
     services
@@ -715,26 +725,31 @@ let main args =
 
     // Initialize database
     printfn "💾 Initializing database"
-    initDatabase ()
+    initDatabase()
+    initializeCachedGameState ()
 
     // Load configuration
     printfn "⚙️ Loading configuration"
     gameConfig <- loadGameConfig ()
     printfn "⚙️ Config loaded: Round=%ds, Display=%ds" gameConfig.roundDurationSeconds gameConfig.gameEndDisplaySeconds
 
-    // Start game manager
+    // Start game manager and KEEP the timer reference
     printfn "🎮 Starting game manager"
-    let _ = startGameManager ()
+    let gameTimer = startGameManager () 
 
     // Create and run web host
     printfn "🌐 Starting web server on http://0.0.0.0:8080"
 
-    Host
-        .CreateDefaultBuilder(args)
-        .ConfigureWebHostDefaults(fun webHostBuilder ->
-            webHostBuilder.Configure(configureApp).ConfigureServices(configureServices).UseUrls("http://0.0.0.0:8080")
-            |> ignore)
-        .Build()
-        .Run()
+    try
+        Host
+            .CreateDefaultBuilder(args)
+            .ConfigureWebHostDefaults(fun webHostBuilder ->
+                webHostBuilder.Configure(configureApp).ConfigureServices(configureServices).UseUrls("http://0.0.0.0:8080")
+                |> ignore)
+            .Build()
+            .Run()
+    finally
+        // Clean up timer when shutting down
+        gameTimer.Dispose()
 
     0

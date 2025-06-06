@@ -1,7 +1,7 @@
 import { Effect, Context } from "effect"
 
 export interface BlackjackService {
-  hit: (userId: string) => Effect.Effect<void, Error>
+  hit: (url: string, userId: string) => Effect.Effect<void, Error>
 }
 
 class BlackjackServiceTag extends Context.Tag("BlackjackService")<
@@ -10,10 +10,10 @@ class BlackjackServiceTag extends Context.Tag("BlackjackService")<
 >() { }
 
 const blackjackServiceLive: BlackjackService = {
-  hit: (userId: string) =>
+  hit: (url: string, userId: string) =>
     Effect.tryPromise({
       try: async () => {
-        const response = await fetch('http://localhost:8080/game-action', {
+        const response = await fetch(`${window.location.protocol}//${url}/game-action`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -23,11 +23,11 @@ const blackjackServiceLive: BlackjackService = {
             userId: userId
           })
         })
-        
+
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`)
         }
-        
+
         const result = await response.json()
         console.log('Hit action result:', result)
       },
