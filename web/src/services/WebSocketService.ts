@@ -147,7 +147,6 @@ const gameWebSocketServiceLive: GameWebSocketService = {
       }
       
       yield* Effect.sync(() => {
-        // Send via HTTP POST instead of WebSocket message
         fetch("http://localhost:8080/game-action", {
           method: "POST",
           headers: { "Content-Type": "application/json" },

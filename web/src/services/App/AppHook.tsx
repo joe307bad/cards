@@ -1,20 +1,47 @@
-import React, { createContext, useContext, ReactNode } from "react"
+import React, { createContext, useContext, ReactNode, useState, useEffect } from "react"
 import { Effect } from "effect"
 import { useSnapshot } from "valtio"
 import {
     BlackjackService,
     blackjackServiceLive
 } from "./AppService"
-
 import {
     GameWebSocketService,
     gameWebSocketServiceLive,
     gameWebSocketState,
 } from '../WebSocketService'
 
+// Random name generator
+const generateRandomName = (): string => {
+    const adjectives = [
+        'Lucky', 'Bold', 'Swift', 'Clever', 'Mighty', 'Sharp', 'Brave', 'Cool',
+        'Royal', 'Smooth', 'Quick', 'Wild', 'Fierce', 'Noble', 'Wise', 'Elite'
+    ]
+
+    const nouns = [
+        'Ace', 'King', 'Queen', 'Jack', 'Diamond', 'Spade', 'Heart', 'Club',
+        'Player', 'Gambler', 'Winner', 'Champion', 'Master', 'Legend', 'Hero', 'Star'
+    ]
+
+    const randomAdjective = adjectives[Math.floor(Math.random() * adjectives.length)]
+    const randomNoun = nouns[Math.floor(Math.random() * nouns.length)]
+    const randomNumber = Math.floor(Math.random() * 1000)
+
+    return `${randomAdjective}${randomNoun}${randomNumber}`
+}
+
+const getStoredPlayerName = (): string | null => {
+    return localStorage.getItem('blackjack-player-name')
+}
+
+const storePlayerName = (name: string): void => {
+    localStorage.setItem('blackjack-player-name', name)
+}
+
 type BlackjackContextType = {
-    service: BlackjackService
+    blackjack: BlackjackService
     ws: GameWebSocketService
+    playerName: string
 }
 
 const BlackjackContext = createContext<BlackjackContextType | null>(null)
@@ -24,9 +51,23 @@ interface BlackjackProviderProps {
 }
 
 export const BlackjackProvider: React.FC<BlackjackProviderProps> = ({ children }) => {
+    const [playerName, setPlayerName] = useState<string>('')
+
+    useEffect(() => {
+        let storedName = getStoredPlayerName()
+
+        if (!storedName) {
+            storedName = generateRandomName()
+            storePlayerName(storedName)
+        }
+
+        setPlayerName(storedName)
+    }, [])
+
     const value: BlackjackContextType = {
-        service: blackjackServiceLive,
-        ws: gameWebSocketServiceLive
+        blackjack: blackjackServiceLive,
+        ws: gameWebSocketServiceLive,
+        playerName
     }
 
     return (
@@ -54,7 +95,7 @@ const useBlackjackService = (): BlackjackService => {
     if (!context) {
         throw new Error("useBlackjackService must be used within a BlackjackProvider")
     }
-    return context.service
+    return context.blackjack
 }
 
 const useBlackjackState = () => {
@@ -62,21 +103,34 @@ const useBlackjackState = () => {
 }
 
 const useBlackjackActions = () => {
+    const context = useContext(BlackjackContext)
     const service = useBlackjackService()
 
-    const newGame = async () => {
-        // await Effect.runPromise(service.newGame())
+    if (!context) {
+        throw new Error("useBlackjackActions must be used within a BlackjackProvider")
     }
 
     const hit = async () => {
-        await Effect.runPromise(service.hit("player-1"))
+        await Effect.runPromise(service.hit(context.playerName))
     }
 
-    const stand = async () => {
-        // await Effect.runPromise(service.stand())
+    return {
+        hit,
+        playerName: context.playerName
     }
-
-    return { newGame, hit, stand }
 }
 
-export { useBlackjackActions, useBlackjackState, useWsService }
+const usePlayerName = (): string => {
+    const context = useContext(BlackjackContext)
+    if (!context) {
+        throw new Error("usePlayerName must be used within a BlackjackProvider")
+    }
+    return context.playerName
+}
+
+export {
+    useBlackjackActions,
+    useBlackjackState,
+    useWsService,
+    usePlayerName
+}

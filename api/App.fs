@@ -613,7 +613,7 @@ let startGameManager () =
                     printfn "❌ Error in game manager: %s" ex.Message),
             null,
             TimeSpan.Zero,
-            TimeSpan.FromSeconds 1.0
+            TimeSpan.FromSeconds 0.35
         )
 
     timer
