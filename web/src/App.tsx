@@ -3,15 +3,15 @@ import { useBlackjackActions, useBlackjackState, useWsService } from "./services
 import MinimalTable from "./components/MinimalTable";
 
 export function App() {
-    const actions = useBlackjackActions();
-    const state = useBlackjackState();
-    const ws = useWsService();
+	const actions = useBlackjackActions();
+	const state = useBlackjackState();
+	const ws = useWsService();
 
-    useEffect(() => {
-        ws.connect()
-    }, [])
+	useEffect(() => {
+		ws.connect()
+	}, [])
 
-    return (
-        <MinimalTable hit={actions.hit} gameState={state} />
-    )
+	return (
+		<MinimalTable hit={actions.hit} gameState={state} />
+	)
 }
