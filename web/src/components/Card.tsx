@@ -170,8 +170,8 @@ function FlipCard({ initialCard = "AS" }) {
 
 export function PlayCard({ card }) {
 	return (
-		<div className="w-15 h-29">
-			<Canvas camera={{ position: [0, 0, 6], fov: 50 }}>
+		<div className="w-15 h-20">
+			<Canvas camera={{ position: [0, 0, 4], fov: 50 }}>
 				<ambientLight intensity={5} />
 				<pointLight position={[5, 5, 5]} intensity={1} />
 				<FlipCard initialCard={card} />
