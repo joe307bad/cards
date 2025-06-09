@@ -186,7 +186,7 @@ let initDatabase () =
     let connectionString = sprintf "Data Source=%s" (getDbPath ())
     use connection = new SqliteConnection(connectionString)
     connection.Open()
-    
+
     let createGameStateTable =
         """
         CREATE TABLE IF NOT EXISTS game_state (
@@ -195,7 +195,7 @@ let initDatabase () =
             updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
         );
         """
-    
+
     let createGameConfigTable =
         """
         CREATE TABLE IF NOT EXISTS game_config (
@@ -207,7 +207,7 @@ let initDatabase () =
 
     use command1 = new SqliteCommand(createGameStateTable, connection)
     command1.ExecuteNonQuery() |> ignore
-    
+
     use command2 = new SqliteCommand(createGameConfigTable, connection)
     command2.ExecuteNonQuery() |> ignore
 
@@ -562,7 +562,7 @@ let mutable private cachedGameState = Unchecked.defaultof<GameState> // Initiali
 let private gameStateLock = obj ()
 
 let getCachedGameState () = cachedGameState
- 
+
 let updateGameState (updateFn: GameState -> GameState) =
     lock gameStateLock (fun () ->
         let currentState = loadGameState ()
@@ -572,8 +572,7 @@ let updateGameState (updateFn: GameState -> GameState) =
         newState)
 
 // Add this new function to safely initialize the cached state
-let initializeCachedGameState () =
-    cachedGameState <- loadGameState ()
+let initializeCachedGameState () = cachedGameState <- loadGameState ()
 
 // Calculate countdownTo timestamp based on game state
 let calculateCountdownTo (gameState: GameState) =
@@ -600,24 +599,24 @@ let startGameManager () =
         new Timer(
             (fun _ ->
                 try
-                    let currentState =
-                        updateGameState (fun state ->
-                            // Log countdown for active rounds
-                            logRoundCountdown state
+                    // let currentState =
+                    //     updateGameState (fun state ->
+                    //         // Log countdown for active rounds
+                    //         logRoundCountdown state
 
-                            match state.gameStatus with
-                            | "playing" when shouldEndRound state -> processRoundEnd state
-                            | "game_ended" when shouldStartNewRound state -> startNewRound ()
-                            | _ -> state)
+                    //         match state.gameStatus with
+                    //         | "playing" when shouldEndRound state -> processRoundEnd state
+                    //         | "game_ended" when shouldStartNewRound state -> startNewRound ()
+                    //         | _ -> state)
 
-                    // Always broadcast current state
-                    let stateWithCurrentTime =
-                        { currentState with
-                            timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds()
-                            countdownTo = Some(calculateCountdownTo currentState) }
-
-                    let json = JsonConvert.SerializeObject(stateWithCurrentTime)
-                    broadcastToAll json
+                    // // Always broadcast current state
+                    // let stateWithCurrentTime =
+                    //     { currentState with
+                    //         timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds()
+                    //         countdownTo = Some(calculateCountdownTo currentState) }
+                    printfn ""
+                // let json = JsonConvert.SerializeObject stateWithCurrentTime
+                // broadcastToAll json
                 with ex ->
                     printfn "❌ Error in game manager: %s" ex.Message),
             null,
@@ -629,6 +628,27 @@ let startGameManager () =
 
 // Handlers
 let gameActionHandler: HttpHandler =
+    fun next ctx ->
+        task {
+            let! body = ctx.ReadBodyFromRequestAsync()
+            let action = JsonConvert.DeserializeObject<GameAction>(body)
+
+            printfn "🎮 Received game action: %s from user %s" action.``type`` action.userId
+
+            let newGameState =
+                updateGameState (fun state ->
+                    match action.``type`` with
+                    | "hit" -> processHit state action.userId
+                    | "stand" -> processStand state action.userId
+                    | _ ->
+                        printfn "❌ Unknown action type: %s" action.``type``
+                        state)
+
+            return! json {| success = true |} next ctx
+        }
+
+// Handlers
+let dealHandler: HttpHandler =
     fun next ctx ->
         task {
             let! body = ctx.ReadBodyFromRequestAsync()
@@ -701,6 +721,7 @@ let webSocketHandler: HttpHandler =
 let webApp =
     choose
         [ GET >=> route "/ws" >=> webSocketHandler
+          POST >=> route "/deal" >=> dealHandler
           POST >=> route "/game-action" >=> gameActionHandler
           POST >=> route "/config" >=> configHandler
           GET >=> route "/config" >=> getConfigHandler
@@ -725,7 +746,7 @@ let main args =
 
     // Initialize database
     printfn "💾 Initializing database"
-    initDatabase()
+    initDatabase ()
     initializeCachedGameState ()
 
     // Load configuration
@@ -735,7 +756,7 @@ let main args =
 
     // Start game manager and KEEP the timer reference
     printfn "🎮 Starting game manager"
-    let gameTimer = startGameManager () 
+    let gameTimer = startGameManager ()
 
     // Create and run web host
     printfn "🌐 Starting web server on http://0.0.0.0:8080"
@@ -744,7 +765,10 @@ let main args =
         Host
             .CreateDefaultBuilder(args)
             .ConfigureWebHostDefaults(fun webHostBuilder ->
-                webHostBuilder.Configure(configureApp).ConfigureServices(configureServices).UseUrls("http://0.0.0.0:8080")
+                webHostBuilder
+                    .Configure(configureApp)
+                    .ConfigureServices(configureServices)
+                    .UseUrls("http://0.0.0.0:8080")
                 |> ignore)
             .Build()
             .Run()
