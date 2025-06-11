@@ -163,7 +163,7 @@ export default function MinimalTable(props: { gameState: ReturnType<typeof useBl
 								variant="filled"
 								color="blue"
 								className="w-full px-4 py-3 roundeds"
-								disabled={gameState.gameStatus === 'game_ended' || (currentPlayerHand && getPlayerStatus(currentPlayerHand)?.text === 'BUST!') || standing}
+								disabled={gameState.gameStatus === 'game_ended' || (currentPlayerHand && getPlayerStatus(currentPlayerHand)?.text === 'BUST') || standing}
 								onClick={() => setStanding(true)}
 							>
 								STAND
@@ -172,7 +172,7 @@ export default function MinimalTable(props: { gameState: ReturnType<typeof useBl
 								variant="filled"
 								color="green"
 								className="w-full px-4 py-3 roundeds"
-								disabled={gameState.gameStatus === 'game_ended' || (currentPlayerHand && getPlayerStatus(currentPlayerHand)?.text === 'BUST!') || standing}
+								disabled={gameState.gameStatus === 'game_ended' || (currentPlayerHand && getPlayerStatus(currentPlayerHand)?.text === 'BUST') || standing}
 								onClick={props.hit}
 							>
 								HIT
