@@ -186,7 +186,7 @@ let initDatabase () =
     let connectionString = sprintf "Data Source=%s" (getDbPath ())
     use connection = new SqliteConnection(connectionString)
     connection.Open()
-    
+
     let createGameStateTable =
         """
         CREATE TABLE IF NOT EXISTS game_state (
@@ -195,7 +195,7 @@ let initDatabase () =
             updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
         );
         """
-    
+
     let createGameConfigTable =
         """
         CREATE TABLE IF NOT EXISTS game_config (
@@ -207,7 +207,7 @@ let initDatabase () =
 
     use command1 = new SqliteCommand(createGameStateTable, connection)
     command1.ExecuteNonQuery() |> ignore
-    
+
     use command2 = new SqliteCommand(createGameConfigTable, connection)
     command2.ExecuteNonQuery() |> ignore
 
@@ -286,49 +286,58 @@ let processHit (gameState: GameState) (userId: string) =
         printfn "❌ Hit rejected - game not in playing state"
         gameState
     else
-        match dealCard gameState with
-        | Some(card, newGameState) ->
-            let currentPlayer =
-                newGameState.playerHands
-                |> Map.tryFind userId
-                |> Option.defaultValue
-                    { cards = [||]
-                      score = 0
-                      state = "playing"
-                      result = None }
-
-            printfn "📋 Player %s before hit: %d cards, score %d" userId currentPlayer.cards.Length currentPlayer.score
-
-            let newCards = Array.append currentPlayer.cards [| card |]
-            let newScore = calculateScore newCards
-
-            let newState =
-                if newScore > 21 then "bust"
-                elif newScore = 21 then "blackjack"
-                else "playing"
-
-            let updatedPlayer =
-                { cards = newCards
-                  score = newScore
-                  state = newState
+        let currentPlayer =
+            gameState.playerHands
+            |> Map.tryFind userId
+            |> Option.defaultValue
+                { cards = [||]
+                  score = 0
+                  state = "playing"
                   result = None }
 
-            logPlayerState userId updatedPlayer "after HIT"
-
-            let updatedHands = newGameState.playerHands |> Map.add userId updatedPlayer
-
-            let finalGameState =
-                { newGameState with
-                    playerHands = updatedHands
-                    timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds() }
-
-            // Log all players after this action
-            logAllPlayersState finalGameState "After Hit Action"
-
-            finalGameState
-        | None ->
-            printfn "❌ Hit failed - no cards available"
+        // Reject hits if player has already busted, is standing, or has blackjack
+        if currentPlayer.state <> "playing" then
+            printfn "❌ Hit rejected - player %s is in state '%s' (cannot hit)" userId currentPlayer.state
             gameState
+        else
+            match dealCard gameState with
+            | Some(card, newGameState) ->
+                printfn
+                    "📋 Player %s before hit: %d cards, score %d"
+                    userId
+                    currentPlayer.cards.Length
+                    currentPlayer.score
+
+                let newCards = Array.append currentPlayer.cards [| card |]
+                let newScore = calculateScore newCards
+
+                let newState =
+                    if newScore > 21 then "bust"
+                    elif newScore = 21 then "blackjack"
+                    else "playing"
+
+                let updatedPlayer =
+                    { cards = newCards
+                      score = newScore
+                      state = newState
+                      result = None }
+
+                logPlayerState userId updatedPlayer "after HIT"
+
+                let updatedHands = newGameState.playerHands |> Map.add userId updatedPlayer
+
+                let finalGameState =
+                    { newGameState with
+                        playerHands = updatedHands
+                        timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds() }
+
+                // Log all players after this action
+                logAllPlayersState finalGameState "After Hit Action"
+
+                finalGameState
+            | None ->
+                printfn "❌ Hit failed - no cards available"
+                gameState
 
 let processStand (gameState: GameState) (userId: string) =
     printfn "🛑 Processing STAND for player %s (Game Status: %s)" userId gameState.gameStatus
@@ -483,6 +492,12 @@ let shouldEndRound (gameState: GameState) =
     else
         false
 
+let startNewRound () =
+    printfn "🎮 Starting new round"
+    let newState = createInitialGameState ()
+    logGameStateTransition "game_ended" newState.gameStatus "New Round"
+    newState
+
 let processRoundEnd (gameState: GameState) =
     printfn "🏁 Processing round end"
     let oldStatus = gameState.gameStatus
@@ -492,16 +507,21 @@ let processRoundEnd (gameState: GameState) =
     let stateWithResults = calculateResults stateAfterDealer
     let now = DateTimeOffset.UtcNow.ToUnixTimeSeconds()
 
-    let finalState =
-        { stateWithResults with
-            gameStatus = "game_ended"
-            roundEndTime = Some now
-            timestamp = now }
+    // Check if deck is empty - if so, skip display period and start new round immediately
+    if stateWithResults.deck.Length = 0 then
+        printfn "🃏 Deck is empty - starting new round immediately"
+        startNewRound ()
+    else
+        let finalState =
+            { stateWithResults with
+                gameStatus = "game_ended"
+                roundEndTime = Some now
+                timestamp = now }
 
-    logGameStateTransition oldStatus finalState.gameStatus "Round End"
-    printfn "🏁 Round ended at %d, results display until %d" now (now + int64 gameConfig.gameEndDisplaySeconds)
+        logGameStateTransition oldStatus finalState.gameStatus "Round End"
+        printfn "🏁 Round ended at %d, results display until %d" now (now + int64 gameConfig.gameEndDisplaySeconds)
 
-    finalState
+        finalState
 
 let shouldStartNewRound (gameState: GameState) =
     match gameState.roundEndTime with
@@ -522,11 +542,6 @@ let shouldStartNewRound (gameState: GameState) =
             false
     | None -> false
 
-let startNewRound () =
-    printfn "🎮 Starting new round"
-    let newState = createInitialGameState ()
-    logGameStateTransition "game_ended" newState.gameStatus "New Round"
-    newState
 
 // WebSocket Management
 let webSocketConnections = ConcurrentDictionary<string, WebSocket>()
@@ -562,7 +577,7 @@ let mutable private cachedGameState = Unchecked.defaultof<GameState> // Initiali
 let private gameStateLock = obj ()
 
 let getCachedGameState () = cachedGameState
- 
+
 let updateGameState (updateFn: GameState -> GameState) =
     lock gameStateLock (fun () ->
         let currentState = loadGameState ()
@@ -572,8 +587,7 @@ let updateGameState (updateFn: GameState -> GameState) =
         newState)
 
 // Add this new function to safely initialize the cached state
-let initializeCachedGameState () =
-    cachedGameState <- loadGameState ()
+let initializeCachedGameState () = cachedGameState <- loadGameState ()
 
 // Calculate countdownTo timestamp based on game state
 let calculateCountdownTo (gameState: GameState) =
@@ -602,13 +616,18 @@ let startGameManager () =
                 try
                     let currentState =
                         updateGameState (fun state ->
-                            // Log countdown for active rounds
-                            logRoundCountdown state
+                            // Check for empty deck during gameplay
+                            if state.deck.Length = 0 && state.gameStatus = "playing" then
+                                printfn "🃏 Deck empty during gameplay - ending round"
+                                processRoundEnd state
+                            else
+                                // Log countdown for active rounds
+                                logRoundCountdown state
 
-                            match state.gameStatus with
-                            | "playing" when shouldEndRound state -> processRoundEnd state
-                            | "game_ended" when shouldStartNewRound state -> startNewRound ()
-                            | _ -> state)
+                                match state.gameStatus with
+                                | "playing" when shouldEndRound state -> processRoundEnd state
+                                | "game_ended" when shouldStartNewRound state -> startNewRound ()
+                                | _ -> state)
 
                     // Always broadcast current state
                     let stateWithCurrentTime =
@@ -725,7 +744,7 @@ let main args =
 
     // Initialize database
     printfn "💾 Initializing database"
-    initDatabase()
+    initDatabase ()
     initializeCachedGameState ()
 
     // Load configuration
@@ -735,7 +754,7 @@ let main args =
 
     // Start game manager and KEEP the timer reference
     printfn "🎮 Starting game manager"
-    let gameTimer = startGameManager () 
+    let gameTimer = startGameManager ()
 
     // Create and run web host
     printfn "🌐 Starting web server on http://0.0.0.0:8080"
@@ -744,7 +763,10 @@ let main args =
         Host
             .CreateDefaultBuilder(args)
             .ConfigureWebHostDefaults(fun webHostBuilder ->
-                webHostBuilder.Configure(configureApp).ConfigureServices(configureServices).UseUrls("http://0.0.0.0:8080")
+                webHostBuilder
+                    .Configure(configureApp)
+                    .ConfigureServices(configureServices)
+                    .UseUrls("http://0.0.0.0:8080")
                 |> ignore)
             .Build()
             .Run()
