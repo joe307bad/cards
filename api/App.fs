@@ -16,7 +16,7 @@ open HighSpeedCardDealer
 type PlayerCards = { UserId: string; Cards: int list; Finished: bool }
 type GameState = {
     RoundActive: bool
-    DealerCards: int list
+    DealerCards: String list
     Dealer: HighSpeedCardDealer.DealerState
 }
 
@@ -77,6 +77,13 @@ let clearAllPlayerCards () =
     txn.Commit() |> ignore
 
 // Helper functions
+let cardToString card =
+    let suits = [|"S"; "H"; "D"; "C"|]  // Spades, Hearts, Diamonds, Clubs
+    let ranks = [|"A"; "2"; "3"; "4"; "5"; "6"; "7"; "8"; "9"; "10"; "J"; "Q"; "K"|]
+    let suit = suits.[card % 4]
+    let rank = ranks.[card % 13]
+    rank + suit
+
 let cardValue card = 
     let value = card % 13 + 1
     if value > 10 then 10 else value
@@ -98,7 +105,7 @@ let getCurrentlyConnectedPlayers () =
 let createPlayerResponse userId cards =
     {| 
         UserId = userId
-        Cards = cards
+        Cards = cards |> List.map cardToString  // ADD THIS MAP
         Total = handValue cards
         RemainingCards = getRemainingCards gameState.Dealer
         TotalStartingCards = totalStartingCards
@@ -172,6 +179,7 @@ let playDealerHand () =
     let card2 = dealCard gameState.Dealer
     dealerPlay [card1; card2]
 
+
 let startNewRound () =
     printfn "🎲 NEW ROUND STARTING!"
     clearAllPlayerCards()
@@ -182,7 +190,14 @@ let startNewRound () =
     }
     roundCountdown <- 10
     newRoundCountdown <- 0
-    broadcastMessage {| Type = "new_round" |}
+    
+    // Calculate when the round will end (10 seconds from now)
+    let roundEndTime = System.DateTimeOffset.UtcNow.AddSeconds(roundCountdown).ToUnixTimeMilliseconds()
+    
+    broadcastMessage {| 
+        Type = "new_round"
+        RoundEndTimestamp = roundEndTime
+    |}
 
 let endRound () =
     printfn "⏰ Round ending! Dealer playing..."
@@ -194,13 +209,10 @@ let endRound () =
     // Dealer plays
     let dealerFinalCards = playDealerHand()
     let dealerTotal = handValue dealerFinalCards
-    gameState <- { gameState with DealerCards = dealerFinalCards }
+    gameState <- { gameState with DealerCards = dealerFinalCards |> List.map cardToString }
     
     // Print dealer's final hand
-    printfn "🎰 DEALER FINAL HAND: %A (Total: %d)" dealerFinalCards dealerTotal
-    
-    // Broadcast dealer cards
-    broadcastMessage {| Type = "dealer_cards"; Cards = dealerFinalCards |}
+    printfn "🎰 DEALER FINAL HAND: %A (Total: %d)" (dealerFinalCards |> List.map cardToString) dealerTotal
     
     // Calculate and print results
     let players = getAllPlayers()
@@ -213,13 +225,23 @@ let endRound () =
                 elif dealerTotal > 21 then true
                 elif playerTotal > dealerTotal then true
                 else false
-            let result = {| UserId = player.UserId; Cards = player.Cards; Won = won; Total = playerTotal |}
+            let result = {| 
+                UserId = player.UserId
+                Cards = player.Cards |> List.map cardToString  // ADD THIS MAP
+                Won = won
+                Total = playerTotal 
+            |}
             printfn "👤 Player %s: %A (Total: %d) - %s" 
                 player.UserId player.Cards playerTotal (if won then "WON" else "LOST")
             result)
     
-    // Broadcast results
-    broadcastMessage {| Type = "round_results"; Results = results; DealerTotal = dealerTotal |}
+    // Broadcast COMBINED dealer cards and results in a single message
+    broadcastMessage {| 
+        Type = "round_results"
+        DealerCards = dealerFinalCards |> List.map cardToString
+        DealerTotal = dealerTotal
+        Results = results 
+    |}
     
     // Start countdown to next round
     newRoundCountdown <- 5
