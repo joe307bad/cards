@@ -36,7 +36,7 @@ export type GameStateSnapshot = {
 const gameWebSocketState = proxy({
   isConnected: false,
   currentGameState: null as GameState | null,
-  connectionUrl: "ws://localhost:8080/ws",
+  connectionUrl: "ws://localhost:5000/ws",
   lastError: null as Error | null,
   ws: null as WebSocket | null
 })
@@ -79,6 +79,7 @@ const gameWebSocketServiceLive: GameWebSocketService = {
           ws.onmessage = (event) => {
             try {
               const gameState = JSON.parse(event.data) as GameState
+              console.log(new Date().toISOString(), event.data);
               gameWebSocketState.currentGameState = gameState;
             } catch (error) {
               console.error("Failed to parse game state:", error)

@@ -51,6 +51,9 @@ RUN mkdir -p /app/data && chown -R app:app /app/data
 ENV ASPNETCORE_ENVIRONMENT=Production
 ENV ASPNETCORE_URLS=http://+:8080
 ENV ConnectionStrings__DefaultConnection="Data Source=/app/data/blackjack.db"
+ENV MMAP_COUNTER_ENV=production
+ENV MMAP_COUNTER_PATH=/app/data/counters
+ENV MMAP_COUNTER_MAX_FILES=500
 
 # Expose port
 EXPOSE 8080

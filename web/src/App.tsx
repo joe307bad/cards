@@ -12,6 +12,7 @@ export function App() {
 	}, [])
 
 	return (
-		<MinimalTable hit={actions.hit} gameState={state} />
+		<></>
+		// <MinimalTable hit={actions.hit} gameState={state} />
 	)
 }
