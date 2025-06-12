@@ -6,3 +6,4 @@ api/wwwroot
 .idea/deck.iml
 .idea/modules.xml
 .idea/vcs.xml
+*.mdb
