@@ -116,8 +116,14 @@ const useBlackjackActions = () => {
         await Effect.runPromise(service.hit(process.env.URL, context.playerName))
     }
 
+    const get = async (playerName: string) => {
+        //@ts-ignore
+        return Effect.runPromise(service.get(process.env.URL, playerName))
+    }
+
     return {
         hit,
+        get,
         playerName: context.playerName
     }
 }
