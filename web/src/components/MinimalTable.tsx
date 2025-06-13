@@ -13,13 +13,11 @@ export default function MinimalTable(props: { gameState: ReturnType<typeof useBl
 
 	// Update countdown every second
 	useEffect(() => {
-		// @ts-ignore
-		if (!gameState?.countdownTo?.Fields?.[0]) return;
+		if (!gameState?.countdownTo) return;
 
 		const updateCountdown = () => {
 			const now = Math.floor(Date.now() / 1000);
-			// @ts-ignore
-			const targetTime = gameState.countdownTo.Fields[0];
+			const targetTime = gameState.countdownTo;
 			const remaining = Math.max(0, targetTime - now);
 			setCountdown(remaining);
 		};
@@ -46,11 +44,11 @@ export default function MinimalTable(props: { gameState: ReturnType<typeof useBl
 		if (gameState.dealerScore === 21) {
 			return { text: "BLACKJACK!", color: "text-yellow-300" };
 		}
-		if (gameState.dealerScore > 21) {
+		if ((gameState?.dealerScore ?? 0) > 21) {
 			return { text: "BUST", color: "text-red-500" };
 		}
 		if (gameState.gameStatus === 'game_ended') {
-			return { text: "STAND", color: "text-yellow-300" };
+			return { text: "STAND", color: "textx-yellow-300" };
 		}
 		return null;
 	};
@@ -84,7 +82,7 @@ export default function MinimalTable(props: { gameState: ReturnType<typeof useBl
 	// Get countdown display text
 	const getCountdownText = () => {
 		// @ts-ignore
-		if (!gameState.countdownTo?.Fields?.[0]) return null;
+		if (!gameState.countdownTo) return null;
 
 		if (gameState.gameStatus === 'playing') {
 			return `Round ends in: ${countdown}s`;
@@ -97,9 +95,8 @@ export default function MinimalTable(props: { gameState: ReturnType<typeof useBl
 	const countdownText = getCountdownText();
 
 	// Get current player's hand and other players
-	const currentPlayerHand = gameState.playerHands[playerName];
-	const otherPlayers = Object.entries(gameState.playerHands).filter(([playerId]) => playerId !== playerName);
-
+	const currentPlayerHand = gameState?.playerHands?.[playerName];
+	const otherPlayers = Object.entries(gameState?.playerHands ?? {}).filter(([playerId]) => playerId !== playerName);
 
 	return (
 		<div className="flex flex-col p-6 bg-green-800 text-white max-w-4xl mx-auto rounded-lg max-w-[1000px] h-full items-start">
@@ -111,7 +108,7 @@ export default function MinimalTable(props: { gameState: ReturnType<typeof useBl
 
 								<Typography color="white" variant="h5">Dealer</Typography>
 								<p className="pl-2">♠</p>
-								<Typography className='pl-2' color="white" variant="h5">{gameState.dealerScore}</Typography>
+								{gameState.dealerScore > 0 && <Typography className='pl-2' color="white" variant="h5">{gameState.dealerScore}</Typography>}
 								{dealerStatus && (
 									<p className={`${dealerStatus.color} text-sm pl-2 align-left font-semibold`}>
 										{dealerStatus.text}
@@ -126,7 +123,7 @@ export default function MinimalTable(props: { gameState: ReturnType<typeof useBl
 							)}
 						</div>
 						<div className="flex">
-							{gameState.dealerHand.map((card, i) => (
+							{gameState?.dealerHand?.map((card, i) => (
 								<PlayCard key={formatCard(card)} card={formatCard(card)} />
 							))}
 						</div>
@@ -184,7 +181,6 @@ export default function MinimalTable(props: { gameState: ReturnType<typeof useBl
 				{otherPlayers.length > 0 && (
 					<div className="flex justify-center items-center gap-4 flex-wrap mt-5">
 						{otherPlayers.map(([playerId, hand]: any) => {
-							console.log({ hand: hand.score })
 							const playerStatus = getPlayerStatus(hand);
 							return (
 								<Card className="rounded-none bg-[transparent] flex flex-col bg-[var(--color-green-700)]">
