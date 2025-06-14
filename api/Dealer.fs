@@ -6,10 +6,8 @@ module HighSpeedCardDealer
 open System
 open LightningDB
 
-// Card representation - simple int for maximum performance
 type Card = int
 
-// Dealer state
 type DealerState =
     { Environment: LightningEnvironment
       Database: LightningDatabase
@@ -22,7 +20,6 @@ let totalCards = 2_080_000
 let private createShuffledDeck () = // 40,000 decks
     let cards = Array.init totalCards id
 
-    // Fisher-Yates shuffle for maximum randomness
     let rng = Random()
 
     for i = cards.Length - 1 downto 1 do
@@ -62,7 +59,6 @@ let dealCard (state: DealerState) =
     state.CurrentIndex <- state.CurrentIndex + 1
     state.DealtCount <- state.DealtCount + 1UL
 
-    // Immediate persistence - use WriteMap for maximum speed
     use txn = state.Environment.BeginTransaction(TransactionBeginFlags.NoSync)
     let key = BitConverter.GetBytes(state.DealtCount)
     let value = BitConverter.GetBytes(card)

@@ -12,12 +12,7 @@ export function App() {
 	console.log({ initialState })
 
 	useEffect(() => {
-		if (!playerName) {
-			actions.get(playerName).then(r => {
-				ws.connect()
-				setInitialState(r)
-			});
-		}
+		ws.connect()
 	}, [playerName])
 
 	return (

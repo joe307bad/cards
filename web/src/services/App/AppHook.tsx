@@ -1,15 +1,8 @@
 import React, { createContext, useContext, ReactNode, useState, useEffect } from "react"
 import { Effect } from "effect"
 import { useSnapshot } from "valtio"
-import {
-    BlackjackService,
-    blackjackServiceLive
-} from "./AppService"
-import {
-    GameWebSocketService,
-    gameWebSocketServiceLive,
-    gameWebSocketState,
-} from '../WebSocketService'
+import services from '../Services';
+import { gameWebSocketState } from "../WebSocketService";
 
 // Random name generator
 const generateRandomName = (): string => {
@@ -39,8 +32,8 @@ const storePlayerName = (name: string): void => {
 }
 
 type BlackjackContextType = {
-    blackjack: BlackjackService
-    ws: GameWebSocketService
+    blackjack: typeof services.blackjackService
+    gs: typeof services.gameService
     playerName: string
 }
 
@@ -65,8 +58,8 @@ export const BlackjackProvider: React.FC<BlackjackProviderProps> = ({ children }
     }, [])
 
     const value: BlackjackContextType = {
-        blackjack: blackjackServiceLive,
-        ws: gameWebSocketServiceLive,
+        blackjack: services.blackjackService,
+        gs: services.gameService,
         playerName
     }
 
@@ -85,13 +78,13 @@ const useWsService = () => {
 
     const connect = async () => {
         //@ts-ignore
-        await Effect.runPromise(context.ws.connect(process.env.URL))
+        await Effect.runPromise(context.gs.connect(process.env.URL, context.playerName))
     }
 
     return { connect }
 }
 
-const useBlackjackService = (): BlackjackService => {
+const useBlackjackService = (): typeof services.blackjackService => {
     const context = useContext(BlackjackContext)
     if (!context) {
         throw new Error("useBlackjackService must be used within a BlackjackProvider")
