@@ -1,5 +1,6 @@
-import { Effect, Context } from "effect"
+import { Effect, Context, Layer } from "effect"
 import { proxy } from "valtio"
+import { BlackjackService, getLoadResultsData, getLoadRoundData, isLoadResultsResponse, isLoadRoundResponse } from "./App/AppService";
 
 // Card representation
 type CardCode = string; // e.g., "5S", "4H", "QD"
@@ -69,7 +70,7 @@ interface PlayerCardsData {
 type WebSocketMessage =
 	| {
 		Type: "new_round";
-		RoundEndTimestamp: number;
+		RoundEndTime: number;
 		DealerCards: CardCode[]
 		DealerTotal: number;
 	}
@@ -130,8 +131,8 @@ function processWebSocketMessage(rawMessage: string): ProcessedResult {
 			case "new_round":
 				return {
 					type: "NEW_ROUND",
-					roundEndTimestamp: message.RoundEndTimestamp,
-					message: `New round started, ending at ${new Date(message.RoundEndTimestamp).toLocaleTimeString()}`,
+					roundEndTimestamp: message.RoundEndTime,
+					message: `New round started, ending at ${new Date(message.RoundEndTime).toLocaleTimeString()}`,
 					dealerCards: message.DealerCards,
 					dealerTotal: message.DealerTotal
 				};
@@ -224,113 +225,168 @@ const gameWebSocketState = proxy({
 		roundEndTime: 0,
 		countdownTo: 0
 	} as unknown as GameState,
-	connectionUrl: "ws://localhost:5000/ws",
 	lastError: null as Error | null,
 	ws: null as WebSocket | null
 })
 
-export interface GameWebSocketService {
-	readonly connect: (url?: string) => Effect.Effect<void, Error>
+export interface IGameWebSocketService {
+	readonly connect: (url: string, playerName: string) => Effect.Effect<void, Error>
 	readonly disconnect: Effect.Effect<void, never>
 }
 
-class GameWebSocketServiceTag extends Context.Tag("GameWebSocketService")<
-	GameWebSocketServiceTag,
-	GameWebSocketService
+class GameWebSocketService extends Context.Tag("GameWebSocketService")<
+	GameWebSocketService,
+	IGameWebSocketService
 >() { }
 
-const gameWebSocketServiceLive: GameWebSocketService = {
-	connect: (url?: string) => {
-		const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-		const wsUrl = `${protocol}//${url}/ws` || gameWebSocketState.connectionUrl;
+const makeGameWebSocketServiceLive = Layer.effect(
+	GameWebSocketService,
+	Effect.gen(function* () {
+		const blackjackService = yield* BlackjackService;
+		return {
+			connect: (url: string, playerName: string) => {
+				const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+				const wsUrl = `${protocol}//${url}/ws`;
+				return Effect.gen(function* () {
+					// @ts-ignore 
+					const r = yield* blackjackService.get(process.env.URL, playerName);
+					const gameState = gameWebSocketState.currentGameState;
 
-		return Effect.gen(function* () {
+					if (isLoadResultsResponse(r)) {
+						const d = getLoadResultsData(r);
+						if (d) {
+							gameState.countdownTo = d.roundStartTime
+							gameState.dealerHand = d.allDealerCards.map(convertCardCodeToCard).reverse()
+							gameState.dealerScore = d.dealerTotal
+							gameState.gameStatus = 'game_ended'
 
-			return yield* Effect.async<void, Error>((resume) => {
-				try {
-					const ws = new WebSocket(wsUrl)
+							d.playerResults.forEach(result => {
+								gameState.playerHands[result.userId] = {
+									cards: result.cards.map(convertCardCodeToCard),
+									score: result.total,
+									state: result.total === d.dealerTotal ? 'push' : result.won ? 'won' : 'lost'
+								}
+							})
+						}
+					} else if (isLoadRoundResponse(r)) {
+						const d = getLoadRoundData(r);
+						if (d) {
 
-					ws.onopen = () => {
-						gameWebSocketState.isConnected = true
-						gameWebSocketState.lastError = null
-						resume(Effect.succeed(void 0))
-					}
+							gameState.dealerHand = [convertCardCodeToCard(d.firstDealerCard)]
+							gameState.countdownTo = d.roundEndTime
+							gameState.dealerScore = d.dealerTotal
+							gameState.gameStatus = 'playing';
 
-					ws.onerror = (error) => {
-						gameWebSocketState.isConnected = false
-						const errorObj = new Error(`WebSocket error: ${error}`)
-						gameWebSocketState.lastError = errorObj
-						resume(Effect.fail(errorObj))
-					}
-
-					ws.onmessage = (event) => {
-						try {
-							const processed = processWebSocketMessage(event.data);
-							const gameState = gameWebSocketState.currentGameState;
-
-							switch (processed.type) {
-								case 'NEW_ROUND':
-									gameState.dealerHand = processed.dealerCards.map(convertCardCodeToCard).reverse()
-									gameState.countdownTo = processed.roundEndTimestamp
-									gameState.dealerScore = processed.dealerTotal
-									gameState.gameStatus = 'playing';
-									gameState.playerHands = {};
-									break;
-								case 'PLAYER_CARDS':
-									gameState.playerHands[processed.playerId] = {
-										cards: processed.cards.map(convertCardCodeToCard).reverse(),
-										score: processed.total,
-										state: 'playing'
-									}
-									break;
-								case 'ROUND_RESULTS':
-									gameState.countdownTo = processed.roundStartTime
-									gameState.dealerHand = processed.dealerCards.map(convertCardCodeToCard).reverse()
-									gameState.dealerScore = processed.dealerTotal
-									gameState.gameStatus = 'game_ended'
-
-									processed.playerResults.forEach(result => {
-										gameState.playerHands[result.UserId] = {
-											cards: result.Cards.map(convertCardCodeToCard),
-											score: result.Total,
-											state: result.Total === processed.dealerTotal ? 'push' : result.Won ? 'won' : 'lost'
-										}
-									})
-
-							}
-						} catch (error) {
-							console.error("Failed to parse game state:", error)
+							d.currentlyConnectedPlayers.forEach(result => {
+								gameState.playerHands[result.userId] = {
+									cards: result.cards.map(convertCardCodeToCard),
+									score: result.,
+									state: result.total === d.dealerTotal ? 'push' : result.won ? 'won' : 'lost'
+								}
+							})
 						}
 					}
 
-					ws.onclose = () => {
-						gameWebSocketState.isConnected = false
-					}
+					console.log({ r })
 
-					gameWebSocketState.ws = ws
+					// 					allDealerCards: (2) […]
+					// cards: null
+					// currentlyConnectedPlayers: []
+					// dealerTotal: 20
+					// finished: fals
+					// playerResults: []
+					// remainingCards: 2079915
+					// roundStartTime: 0
+					// total: 0
+					// totalStartingCards: 2080000
+					// userId: "CoolChampion483"
 
-				} catch (error) {
-					gameWebSocketState.isConnected = false
-					const errorObj = new Error(`Failed to create WebSocket: ${error}`)
-					gameWebSocketState.lastError = errorObj
-					resume(Effect.fail(errorObj))
+
+					debugger;
+					return yield* Effect.sync(() => {
+						try {
+							const ws = new WebSocket(wsUrl)
+
+							ws.onopen = () => {
+								gameWebSocketState.isConnected = true
+								gameWebSocketState.lastError = null
+							}
+
+							ws.onerror = (error) => {
+								gameWebSocketState.isConnected = false
+								const errorObj = new Error(`WebSocket error: ${error}`)
+								gameWebSocketState.lastError = errorObj
+							}
+
+							ws.onmessage = (event) => {
+								try {
+									const processed = processWebSocketMessage(event.data);
+									const gameState = gameWebSocketState.currentGameState;
+
+									switch (processed.type) {
+										case 'NEW_ROUND':
+											gameState.dealerHand = processed.dealerCards.map(convertCardCodeToCard).reverse()
+											gameState.countdownTo = processed.roundEndTimestamp
+											gameState.dealerScore = processed.dealerTotal
+											gameState.gameStatus = 'playing';
+											gameState.playerHands = {};
+											break;
+										case 'PLAYER_CARDS':
+											gameState.playerHands[processed.playerId] = {
+												cards: processed.cards.map(convertCardCodeToCard).reverse(),
+												score: processed.total,
+												state: 'playing'
+											}
+											break;
+										case 'ROUND_RESULTS':
+											gameState.countdownTo = processed.roundStartTime
+											gameState.dealerHand = processed.dealerCards.map(convertCardCodeToCard).reverse()
+											gameState.dealerScore = processed.dealerTotal
+											gameState.gameStatus = 'game_ended'
+
+											processed.playerResults.forEach(result => {
+												gameState.playerHands[result.UserId] = {
+													cards: result.Cards.map(convertCardCodeToCard),
+													score: result.Total,
+													state: result.Total === processed.dealerTotal ? 'push' : result.Won ? 'won' : 'lost'
+												}
+											})
+
+									}
+								} catch (error) {
+									console.error("Failed to parse game state:", error)
+								}
+							}
+
+							ws.onclose = () => {
+								gameWebSocketState.isConnected = false
+							}
+
+							gameWebSocketState.ws = ws
+
+						} catch (error) {
+							gameWebSocketState.isConnected = false
+							const errorObj = new Error(`Failed to create WebSocket: ${error}`)
+							gameWebSocketState.lastError = errorObj
+						}
+					})
+				})
+			},
+
+			disconnect: Effect.sync(() => {
+				if (gameWebSocketState.ws) {
+					gameWebSocketState.ws.close()
+					gameWebSocketState.ws = null
 				}
-			})
-		})
-	},
-
-	disconnect: Effect.sync(() => {
-		if (gameWebSocketState.ws) {
-			gameWebSocketState.ws.close()
-			gameWebSocketState.ws = null
+				gameWebSocketState.isConnected = false
+				gameWebSocketState.currentGameState
+			}),
 		}
-		gameWebSocketState.isConnected = false
-		gameWebSocketState.currentGameState
-	}),
-}
+
+	}))
 
 export {
-	GameWebSocketServiceTag,
-	gameWebSocketServiceLive,
+	GameWebSocketService,
+	makeGameWebSocketServiceLive,
 	gameWebSocketState,
 }

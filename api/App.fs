@@ -26,8 +26,11 @@ type GameState =
     { RoundActive: bool
       DealerCards: int list
       DealerTotal: int
+      RoundStartTime: int64 option
+      RoundEndTime: int64 option
       Dealer: HighSpeedCardDealer.DealerState
-      BlackjackRound: Round }
+      BlackjackRound: Round 
+      Results: list<{| Cards: list<string>; Total: int; UserId: string; Won: bool |}> option }
 
 // Add this with your other mutable state variables (near totalStartingCards)
 let webSocketUsers = new ConcurrentDictionary<WebSocket, string>()
@@ -55,10 +58,13 @@ let initializeBlackJackRound () =
 
 let mutable gameState =
     { RoundActive = true
+      RoundStartTime = Some 0
+      RoundEndTime = Some 0
       DealerCards = []
       Dealer = initializeDealer "./blackjack_dealer_db"
       BlackjackRound = initializeBlackJackRound ()
-      DealerTotal = 0 }
+      DealerTotal = 0
+      Results = None }
 
 // Initialize total starting cards count
 
@@ -145,7 +151,7 @@ let loadPlayerCards userId =
 
 // Helper functions
 let cardToString card =
-    let suits = [| "S"; "H"; "D"; "C" |] // Spades, Hearts, Diamonds, Clubs
+    let suits = [| "S"; "H"; "D"; "C" |]
     let ranks = [| "A"; "2"; "3"; "4"; "5"; "6"; "7"; "8"; "9"; "10"; "J"; "Q"; "K" |]
     let suit = suits.[card % 4]
     let rank = ranks.[card % 13]
@@ -167,10 +173,10 @@ let handValue cards =
 
     adjustForAces total aces
 
-let createPlayerResponse userId cards =
+let createPlayerResponse (userId: string option) (cards: Card list option) =
     {| UserId = userId
-       Cards = cards |> List.map cardToString // ADD THIS MAP
-       Total = handValue cards
+       Cards = cards |> Option.map (List.map cardToString)
+       Total = cards |> Option.map handValue
        RemainingCards = getRemainingCards gameState.Dealer
        TotalStartingCards = totalStartingCards |}
 
@@ -190,7 +196,7 @@ let broadcastMessage message =
 let dealInitialCards userId =
     let card1 = dealCard gameState.Dealer
     let card2 = dealCard gameState.Dealer
-    let cards = [ card1; card2 ]
+    let cards: Card list = [ card1; card2 ]
     savePlayerCards userId cards false
 
     let playerCards =
@@ -243,36 +249,32 @@ let startNewRound () =
     let dealerTotal = handValue [ card1; card2 ]
     printfn "🎰 DEALER STARTING HAND: %A (Total: %d)" cards dealerTotal
 
+    let roundEndTime =
+        DateTimeOffset.UtcNow.AddSeconds(roundCountdown).ToUnixTimeSeconds()
+
     gameState <-
         { RoundActive = true
           DealerCards = [ card1; card2 ]
           DealerTotal = handValue [ card1; card2 ]
+          RoundStartTime = None
+          RoundEndTime = Some roundEndTime
           BlackjackRound = initializeBlackJackRound ()
-          Dealer = gameState.Dealer }
+          Dealer = gameState.Dealer
+          Results = None }
 
     _roundCountdown <- roundCountdown
     newRoundCountdown <- 0
-
-    // Calculate when the round will end (10 seconds from now)
-    let roundEndTime =
-        System.DateTimeOffset.UtcNow.AddSeconds(roundCountdown).ToUnixTimeSeconds()
-
     broadcastMessage
         {| Type = "new_round"
-           RoundEndTimestamp = roundEndTime
+           RoundEndTime = roundEndTime
            DealerCards = [ cardToString card2 ]
            DealerTotal = handValue [ card2 ] |}
 
 let endRound () =
     printfn "⏰ Round ending! Dealer playing..."
-    gameState <- { gameState with RoundActive = false }
 
     let dealerFinalCards = playDealerHand gameState.DealerCards
     let dealerTotal = handValue dealerFinalCards
-
-    gameState <-
-        { gameState with
-            DealerCards = dealerFinalCards }
 
     printfn "🎰 DEALER FINAL HAND: %A (Total: %d)" (dealerFinalCards |> List.map cardToString) dealerTotal
 
@@ -303,6 +305,8 @@ let endRound () =
                 (if won then "WON" else "LOST")
 
             result)
+    
+    gameState <- { gameState with RoundActive = false; DealerCards = dealerFinalCards; Results = Some results }
 
     broadcastMessage
         {| Type = "round_results"
@@ -356,7 +360,7 @@ let hitHandler: HttpHandler =
 
                 match result with
                 | Some cards ->
-                    let response = createPlayerResponse data.UserId cards.Cards
+                    let response = createPlayerResponse (Some data.UserId) (Some cards.Cards)
 
                     broadcastMessage
                         {| response with
@@ -366,27 +370,82 @@ let hitHandler: HttpHandler =
                 | None -> return! json {| Error = "Cannot deal card" |} next ctx
         }
 
+type LoadRoundData = {
+    UserId: string
+    Cards: string array
+    Total: int
+    RemainingCards: int
+    TotalStartingCards: int
+    CurrentlyConnectedPlayers: array<{| Cards: list<string>; Total: int; UserId: string; Won: bool |}>
+    Finished: bool
+    FirstDealerCard: string
+    RoundEndTime: int64
+    DealerTotal: int
+}
+
+type LoadResultsData = {
+    UserId: string
+    Cards: string array
+    Total: int
+    RemainingCards: int
+    TotalStartingCards: int
+    CurrentlyConnectedPlayers: PlayerCards array
+    Finished: bool
+    AllDealerCards: string array
+    DealerTotal: int
+    PlayerResults: list<{| Cards: list<string>; Total: int; UserId: string; Won: bool |}>
+    RoundStartTime: int64
+}
+
+type GameResponse =
+    | LOAD_ROUND of LoadRoundData
+    | LOAD_RESULTS of LoadResultsData
+
 let getUserCardsHandler userId : HttpHandler =
     fun next ctx ->
         task {
-            match loadPlayerCards userId with
-            | Some playerCards ->
-                let response = createPlayerResponse userId playerCards.Cards
+            let playerCards = loadPlayerCards userId
+            let response = createPlayerResponse (Some userId) (playerCards |> Option.map (fun pc -> pc.Cards))
+            let players = loadAllPlayerCards ()
 
-                return!
-                    json
-                        {| UserId = response.UserId
-                           Cards = response.Cards
-                           Total = response.Total
-                           RemainingCards = response.RemainingCards
-                           TotalStartingCards = response.TotalStartingCards
-                           CurrentlyConnectedPlayers = loadAllPlayerCards ()
-                           Finished = playerCards.Finished
-                           RoundActive = gameState.RoundActive |}
-                        next
-                        ctx
-            | None -> return! json {| Error = "User not found" |} next ctx
+
+            let gameResponse =
+                if gameState.RoundActive then
+                    LOAD_ROUND {
+                        UserId = response.UserId |> Option.defaultValue null
+                        Cards = response.Cards |> Option.map Array.ofList |> Option.defaultValue null
+                        Total = response.Total |> Option.defaultValue 0
+                        RemainingCards = response.RemainingCards
+                        TotalStartingCards = response.TotalStartingCards
+                        CurrentlyConnectedPlayers = players |> List.map (fun (player: PlayerCards) -> {|
+                            Cards = player.Cards |> List.map cardToString;
+                            UserId = player.UserId;
+                            Total = handValue player.Cards;
+                            Won = false
+                        |}) |> List.toArray
+                        Finished = playerCards |> Option.map (fun pc -> pc.Finished) |> Option.defaultValue false
+                        FirstDealerCard = if gameState.DealerCards.IsEmpty then null else cardToString gameState.DealerCards.Head
+                        RoundEndTime = gameState.RoundEndTime |> Option.defaultValue 0L
+                        DealerTotal = gameState.DealerTotal
+                    }
+                else
+                    LOAD_RESULTS {
+                        UserId = response.UserId |> Option.defaultValue null
+                        Cards = response.Cards |> Option.map Array.ofList |> Option.defaultValue null
+                        Total = response.Total |> Option.defaultValue 0
+                        RemainingCards = response.RemainingCards
+                        TotalStartingCards = response.TotalStartingCards
+                        CurrentlyConnectedPlayers = loadAllPlayerCards () |> List.toArray
+                        Finished = playerCards |> Option.map (fun pc -> pc.Finished) |> Option.defaultValue false
+                        AllDealerCards = gameState.DealerCards |> List.map cardToString |> List.toArray
+                        DealerTotal = gameState.DealerTotal
+                        PlayerResults = gameState.Results |> Option.defaultValue []
+                        RoundStartTime = gameState.RoundStartTime |> Option.defaultValue 0L
+                    }
+            
+            return! json gameResponse next ctx
         }
+
 
 let websocketHandler: HttpHandler =
     fun next ctx ->

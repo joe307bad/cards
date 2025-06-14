@@ -1,82 +1,149 @@
-import { Effect, Context } from "effect"
+import { Effect, Context, Layer } from "effect"
 type GetUserCardsSuccessResponse = {
-   UserId: string;
-   Cards: any[];
-   Total: number;
-   RemainingCards: number;
-   TotalStartingCards: number;
-   CurrentlyConnectedPlayers: any[];
-   Finished: boolean;
-   RoundActive: boolean;
+    UserId: string;
+    Cards: any[];
+    Total: number;
+    RemainingCards: number;
+    TotalStartingCards: number;
+    CurrentlyConnectedPlayers: any[];
+    Finished: boolean;
+    RoundActive: boolean;
 };
 
 type GetUserCardsErrorResponse = {
-   Error: string;
+    Error: string;
 };
 
 export type GetUserCardsResponse = GetUserCardsSuccessResponse | GetUserCardsErrorResponse;
 
-export interface BlackjackService {
-   hit: (url: string, userId: string) => Effect.Effect<void, Error>
-   get: (rl: string, userId: string) => Effect.Effect<GetUserCardsResponse, Error>
+export interface IBlackjackService {
+    hit: (url: string, userId: string) => Effect.Effect<void, Error>
+    get: (url: string, userId: string) => Effect.Effect<GameResponse, Error>
 }
 
-class BlackjackServiceTag extends Context.Tag("BlackjackService")<
-   BlackjackServiceTag,
-   BlackjackService
+class BlackjackService extends Context.Tag("BlackjackService")<
+    BlackjackService,
+    IBlackjackService
 >() { }
 
 type HitResponse = {
-   cards: Array<string>,
-   remainingCards: number,
-   total: number,
-   totalStartingCards: number,
-   userId: "string"
+    cards: Array<string>,
+    remainingCards: number,
+    total: number,
+    totalStartingCards: number,
+    userId: "string"
 }
 
-const blackjackServiceLive: BlackjackService = {
-   hit: (url: string, userId: string) =>
-      Effect.tryPromise({
-         try: async () => {
-            const response = await fetch(`${window.location.protocol}//${url}/hit`, {
-               method: 'POST',
-               headers: {
-                  'Content-Type': 'application/json',
-               },
-               body: JSON.stringify({
-                  UserId: userId
-               })
-            })
-
-            if (!response.ok) {
-               throw new Error(`HTTP error! status: ${response.status}`)
-            }
-
-            return await response.json() as HitResponse;
-         },
-         catch: (error) => new Error(`Failed to hit: ${error}`)
-      }),
-   get: (url: string, userId: string) =>
-      Effect.tryPromise({
-         try: async () => {
-            const response = await fetch(`${window.location.protocol}//${url}/cards/${userId}`, {
-               method: 'GET',
-               headers: {
-                  'Content-Type': 'application/json',
-               }
-            })
-
-            if (!response.ok) {
-               throw new Error(`HTTP error! status: ${response.status}`)
-            }
-
-            return await response.json() as GetUserCardsResponse;
-         },
-         catch: (error) => new Error(`Failed to hit: ${error}`)
-      })
+interface PlayerCards {
+    userId: string
+    cards: string[]
+    finished: boolean
 }
+
+interface LoadRoundData {
+    userId: string;
+    cards: string[] | null;
+    total: number;
+    remainingCards: number;
+    totalStartingCards: number;
+    currentlyConnectedPlayers: PlayerCards[];
+    finished: boolean;
+    firstDealerCard: string;
+    roundEndTime: number;
+    dealerTotal: number;
+}
+
+interface LoadResultsData {
+    userId: string;
+    cards: string[] | null;
+    total: number;
+    remainingCards: number;
+    totalStartingCards: number;
+    currentlyConnectedPlayers: PlayerCards[];
+    finished: boolean;
+    allDealerCards: string[];
+    dealerTotal: number;
+    playerResults: Array<{
+        cards: string[];
+        total: number;
+        userId: string;
+        won: boolean;
+    }>;
+    roundStartTime: number;
+}
+
+// F# discriminated union serializes as an object with 'case' and 'fields' properties
+interface GameResponse {
+    case: 'LOAD_ROUND' | 'LOAD_RESULTS';
+    fields: [LoadRoundData] | [LoadResultsData];
+}
+
+// Type guards for working with the response
+function isLoadRoundResponse(response: GameResponse): response is GameResponse & { case: 'LOAD_ROUND'; fields: [LoadRoundData] } {
+    return response.case === 'LOAD_ROUND';
+}
+
+function isLoadResultsResponse(response: GameResponse): response is GameResponse & { case: 'LOAD_RESULTS'; fields: [LoadResultsData] } {
+    return response.case === 'LOAD_RESULTS';
+}
+
+// Helper functions to extract data
+function getLoadRoundData(response: GameResponse): LoadRoundData | null {
+    return isLoadRoundResponse(response) ? response.fields[0] : null;
+}
+
+function getLoadResultsData(response: GameResponse): LoadResultsData | null {
+    return isLoadResultsResponse(response) ? response.fields[0] : null;
+}
+
+const blackjackServiceLive = Layer.succeed(BlackjackService, {
+    hit: (url: string, userId: string) =>
+        Effect.tryPromise({
+            try: async () => {
+                const response = await fetch(`${window.location.protocol}//${url}/hit`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        UserId: userId
+                    })
+                })
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`)
+                }
+
+                return await response.json() as HitResponse;
+            },
+            catch: (error) => new Error(`Failed to hit: ${error}`)
+        }),
+    get: (url: string, userId: string) =>
+        Effect.tryPromise({
+            try: async () => {
+                const response = await fetch(`${window.location.protocol}//${url}/cards/${userId}`, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                })
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`)
+                }
+
+                return await response.json() as GameResponse;
+
+            },
+            catch: (error) => new Error(`Failed to hit: ${error}`)
+        })
+})
 
 export {
-   BlackjackServiceTag,
-   blackjackServiceLive
+    BlackjackService,
+    blackjackServiceLive,
+    isLoadResultsResponse,
+    isLoadRoundResponse,
+    getLoadResultsData,
+    getLoadRoundData
 }
