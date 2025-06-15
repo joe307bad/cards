@@ -3,6 +3,22 @@ import { useBlackjackState, usePlayerName } from '../services/App/AppHook';
 import { Button, Card, Typography } from '@material-tailwind/react';
 import { PlayCard } from './Card';
 
+function formatNumber(num: number): string {
+	const absNum = Math.abs(num);
+	const sign = num < 0 ? '-' : '';
+
+	if (absNum >= 1_000_000_000) {
+		return sign + (absNum / 1_000_000_000).toFixed(4).replace(/\.?0+$/, '') + ' b';
+	} else if (absNum >= 1_000_000) {
+		console.log(absNum)
+		return sign + (absNum / 1_000_000).toFixed(4).replace(/\.?0+$/, '') + 'M';
+	} else if (absNum >= 1_000) {
+		return sign + (absNum / 1_000).toFixed(4).replace(/\.?0+$/, '') + 'k';
+	} else {
+		return num.toLocaleString();
+	}
+}
+
 export default function MinimalTable(props: { gameState: ReturnType<typeof useBlackjackState>, hit: () => void }) {
 	const gameState = props.gameState.currentGameState;
 	const [countdown, setCountdown] = useState(0);
@@ -119,7 +135,7 @@ export default function MinimalTable(props: { gameState: ReturnType<typeof useBl
 						</div>
 						<div className="flex">
 							{gameState?.dealerHand?.map((card, i) => (
-								<PlayCard key={formatCard(card)} card={formatCard(card)} />
+								<PlayCard key={`${formatCard(card)}_${i}`} card={formatCard(card)} />
 							))}
 						</div>
 					</div>
@@ -172,6 +188,14 @@ export default function MinimalTable(props: { gameState: ReturnType<typeof useBl
 						</div>
 					</Card>
 
+				</div>
+				<div className="justify-between flex pt-5 w-full max-w-[500px]">
+					<span className="bg-purple-600 text-white text-sm text-sm px-3 py-1 rounded font-medium">
+						{Object.keys(gameState?.playerHands).length} / 10k players
+					</span>
+					<span className="bg-indigo-600 text-white text-sm text-sm px-3 py-1 rounded font-medium ml-2">
+						{formatNumber(gameState?.remaingingCards)} / {formatNumber(gameState?.totalStartingCards)} cards
+					</span>
 				</div>
 				{otherPlayers.length > 0 && (
 					<div className="flex justify-center items-center gap-4 flex-wrap mt-5">
