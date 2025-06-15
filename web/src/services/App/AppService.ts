@@ -1,4 +1,5 @@
 import { Effect, Context, Layer } from "effect"
+
 type GetUserCardsSuccessResponse = {
     UserId: string;
     Cards: any[];
@@ -38,6 +39,8 @@ interface PlayerCards {
     userId: string
     cards: string[]
     finished: boolean
+    total: number;
+    won: boolean;
 }
 
 interface LoadRoundData {
@@ -46,7 +49,12 @@ interface LoadRoundData {
     total: number;
     remainingCards: number;
     totalStartingCards: number;
-    currentlyConnectedPlayers: PlayerCards[];
+    currentlyConnectedPlayers: Array<{
+        cards: string[];
+        total: number;
+        userId: string;
+        result: string;
+    }>;
     finished: boolean;
     firstDealerCard: string;
     roundEndTime: number;
@@ -67,18 +75,16 @@ interface LoadResultsData {
         cards: string[];
         total: number;
         userId: string;
-        won: boolean;
+        result: string;
     }>;
     roundStartTime: number;
 }
 
-// F# discriminated union serializes as an object with 'case' and 'fields' properties
 interface GameResponse {
     case: 'LOAD_ROUND' | 'LOAD_RESULTS';
     fields: [LoadRoundData] | [LoadResultsData];
 }
 
-// Type guards for working with the response
 function isLoadRoundResponse(response: GameResponse): response is GameResponse & { case: 'LOAD_ROUND'; fields: [LoadRoundData] } {
     return response.case === 'LOAD_ROUND';
 }
@@ -87,7 +93,6 @@ function isLoadResultsResponse(response: GameResponse): response is GameResponse
     return response.case === 'LOAD_RESULTS';
 }
 
-// Helper functions to extract data
 function getLoadRoundData(response: GameResponse): LoadRoundData | null {
     return isLoadRoundResponse(response) ? response.fields[0] : null;
 }
