@@ -2,8 +2,7 @@ import { Effect, Context, Layer } from "effect"
 import { proxy } from "valtio"
 import { BlackjackService, getLoadResultsData, getLoadRoundData, isLoadResultsResponse, isLoadRoundResponse } from "./App/AppService";
 
-// Card representation
-type CardCode = string; // e.g., "5S", "4H", "QD"
+type CardCode = string;
 export type Card = {
 	suit: "hearts" | "diamonds" | "clubs" | "spades"
 	rank: "A" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" | "10" | "J" | "Q" | "K"
@@ -14,11 +13,9 @@ export function convertCardCodeToCard(cardCode: CardCode): Card {
 		throw new Error(`Invalid card code: ${cardCode}`);
 	}
 
-	// Extract suit (last character) and rank (everything before the last character)
 	const suitChar = cardCode.slice(-1).toUpperCase();
 	const rankStr = cardCode.slice(0, -1).toUpperCase();
 
-	// Map suit characters to full suit names
 	const suitMap: Record<string, Card['suit']> = {
 		'S': 'spades',
 		'H': 'hearts',
@@ -26,13 +23,11 @@ export function convertCardCodeToCard(cardCode: CardCode): Card {
 		'C': 'clubs'
 	};
 
-	// Validate suit
 	const suit = suitMap[suitChar];
 	if (!suit) {
 		throw new Error(`Invalid suit: ${suitChar}`);
 	}
 
-	// Validate rank
 	const validRanks: Card['rank'][] = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"];
 	if (!validRanks.includes(rankStr as Card['rank'])) {
 		throw new Error(`Invalid rank: ${rankStr}`);
@@ -44,20 +39,17 @@ export function convertCardCodeToCard(cardCode: CardCode): Card {
 	};
 }
 
-// Helper function to convert multiple card codes at once
 export function convertCardCodesToCards(cardCodes: CardCode[]): Card[] {
 	return cardCodes.map(convertCardCodeToCard);
 }
 
-// Player result for round results
 interface PlayerResult {
 	Cards: CardCode[];
 	Total: number;
 	UserId: string;
-	Won: boolean;
+	Result: string;
 }
 
-// Player cards data
 interface PlayerCardsData {
 	Cards: CardCode[];
 	RemainingCards: number;
@@ -66,7 +58,6 @@ interface PlayerCardsData {
 	UserId: string;
 }
 
-// Discriminated union for all possible WebSocket message types
 type WebSocketMessage =
 	| {
 		Type: "new_round";
@@ -90,7 +81,6 @@ type WebSocketMessage =
 		UserId: string;
 	};
 
-// Discriminated union for processed results
 type ProcessedResult =
 	| {
 		type: "NEW_ROUND";
@@ -140,7 +130,8 @@ function processWebSocketMessage(rawMessage: string): ProcessedResult {
 			case "round_results":
 				const dealerBusted = message.DealerTotal > 21;
 				const playerCount = message.Results.length;
-				const winnersCount = message.Results.filter(r => r.Won).length;
+				const winnersCount = message.Results.filter(r => r.Result == 'won').length;
+				console.log({message})
 
 				return {
 					type: "ROUND_RESULTS",
@@ -169,7 +160,6 @@ function processWebSocketMessage(rawMessage: string): ProcessedResult {
 				};
 
 			default:
-				// TypeScript exhaustiveness check
 				const _exhaustive: never = message;
 				return {
 					type: "UNKNOWN",
@@ -189,7 +179,7 @@ function processWebSocketMessage(rawMessage: string): ProcessedResult {
 export type PlayerState = {
 	cards: Card[]
 	score: number
-	state: "playing" | "won" | "lost" | "push"
+	state: "PLAYING" | "WON" | "LOST" | "PUSH" | string
 }
 
 export interface GameState {
@@ -253,56 +243,41 @@ const makeGameWebSocketServiceLive = Layer.effect(
 					const gameState = gameWebSocketState.currentGameState;
 
 					if (isLoadResultsResponse(r)) {
-						const d = getLoadResultsData(r);
-						if (d) {
-							gameState.countdownTo = d.roundStartTime
-							gameState.dealerHand = d.allDealerCards.map(convertCardCodeToCard).reverse()
-							gameState.dealerScore = d.dealerTotal
+						const loadResults = getLoadResultsData(r);
+						
+						if (loadResults) {
+							gameState.countdownTo = loadResults.roundStartTime
+							gameState.dealerHand = loadResults.allDealerCards.map(convertCardCodeToCard).reverse()
+							gameState.dealerScore = loadResults.dealerTotal
 							gameState.gameStatus = 'game_ended'
 
-							d.playerResults.forEach(result => {
+							loadResults.playerResults.forEach(result => {
 								gameState.playerHands[result.userId] = {
 									cards: result.cards.map(convertCardCodeToCard),
 									score: result.total,
-									state: result.total === d.dealerTotal ? 'push' : result.won ? 'won' : 'lost'
+									state: result.result.toLowerCase()
 								}
 							})
 						}
 					} else if (isLoadRoundResponse(r)) {
-						const d = getLoadRoundData(r);
-						if (d) {
+						const loadRound = getLoadRoundData(r);
+						if (loadRound) {
 
-							gameState.dealerHand = [convertCardCodeToCard(d.firstDealerCard)]
-							gameState.countdownTo = d.roundEndTime
-							gameState.dealerScore = d.dealerTotal
+							gameState.dealerHand = [convertCardCodeToCard(loadRound.firstDealerCard)]
+							gameState.countdownTo = loadRound.roundEndTime
+							gameState.dealerScore = loadRound.dealerTotal
 							gameState.gameStatus = 'playing';
 
-							d.currentlyConnectedPlayers.forEach(result => {
+							loadRound.currentlyConnectedPlayers.forEach(result => {
 								gameState.playerHands[result.userId] = {
 									cards: result.cards.map(convertCardCodeToCard),
-									score: result.,
-									state: result.total === d.dealerTotal ? 'push' : result.won ? 'won' : 'lost'
+									score: result.total,
+									state: result?.result?.toLowerCase()
 								}
 							})
 						}
 					}
 
-					console.log({ r })
-
-					// 					allDealerCards: (2) […]
-					// cards: null
-					// currentlyConnectedPlayers: []
-					// dealerTotal: 20
-					// finished: fals
-					// playerResults: []
-					// remainingCards: 2079915
-					// roundStartTime: 0
-					// total: 0
-					// totalStartingCards: 2080000
-					// userId: "CoolChampion483"
-
-
-					debugger;
 					return yield* Effect.sync(() => {
 						try {
 							const ws = new WebSocket(wsUrl)
@@ -348,7 +323,7 @@ const makeGameWebSocketServiceLive = Layer.effect(
 												gameState.playerHands[result.UserId] = {
 													cards: result.Cards.map(convertCardCodeToCard),
 													score: result.Total,
-													state: result.Total === processed.dealerTotal ? 'push' : result.Won ? 'won' : 'lost'
+													state: result.Result.toLowerCase()
 												}
 											})
 

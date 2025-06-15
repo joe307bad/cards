@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useBlackjackState, usePlayerName } from '../services/App/AppHook';
 import { Button, Card, Typography } from '@material-tailwind/react';
 import { PlayCard } from './Card';
@@ -11,7 +11,6 @@ export default function MinimalTable(props: { gameState: ReturnType<typeof useBl
 
 	const formatCard = (card) => `${card.rank}${card.suit[0].toUpperCase()}`;
 
-	// Update countdown every second
 	useEffect(() => {
 		if (!gameState?.countdownTo) return;
 
@@ -22,7 +21,7 @@ export default function MinimalTable(props: { gameState: ReturnType<typeof useBl
 			setCountdown(remaining);
 		};
 
-		updateCountdown(); // Initial update
+		updateCountdown();
 		const interval = setInterval(updateCountdown, 1000);
 
 		return () => clearInterval(interval);
@@ -39,7 +38,6 @@ export default function MinimalTable(props: { gameState: ReturnType<typeof useBl
 		return null;
 	}
 
-	// Helper function to determine dealer status
 	const getDealerStatus = () => {
 		if (gameState.dealerScore === 21) {
 			return { text: "BLACKJACK!", color: "text-yellow-300" };
@@ -53,21 +51,20 @@ export default function MinimalTable(props: { gameState: ReturnType<typeof useBl
 		return null;
 	};
 
-	// Helper function to determine player status
 	const getPlayerStatus = (hand) => {
+		console.log(hand)
 		if (hand.score === 21) {
 			return { text: "BLACKJACK!", color: "text-yellow-300" };
 		}
 		if (hand.score > 21) {
 			return { text: "BUST", color: "text-red-500" };
 		}
-		if (hand.result && hand.result.Case === "Some") {
-			const result = hand.result.Fields[0];
-			if (result === "win") {
+		if (hand.state) {
+			if (hand.state === "win") {
 				return { text: "WIN", color: "text-green-300" };
-			} else if (result === "loss") {
+			} else if (hand.state === "loss") {
 				return { text: "LOSS", color: "text-red-500" };
-			} else if (result === "push") {
+			} else if (hand.state === "push") {
 				return { text: "PUSH", color: "text-yellow-300" };
 			}
 		}
@@ -79,7 +76,6 @@ export default function MinimalTable(props: { gameState: ReturnType<typeof useBl
 
 	const dealerStatus = getDealerStatus();
 
-	// Get countdown display text
 	const getCountdownText = () => {
 		// @ts-ignore
 		if (!gameState.countdownTo) return null;
@@ -94,7 +90,6 @@ export default function MinimalTable(props: { gameState: ReturnType<typeof useBl
 
 	const countdownText = getCountdownText();
 
-	// Get current player's hand and other players
 	const currentPlayerHand = gameState?.playerHands?.[playerName];
 	const otherPlayers = Object.entries(gameState?.playerHands ?? {}).filter(([playerId]) => playerId !== playerName);
 

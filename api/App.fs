@@ -8,15 +8,49 @@ open Saturn
 open LightningDB
 open System.Text.Json
 open System.Net.WebSockets
+open Newtonsoft.Json
 
-// Open the Dealer module
+open Newtonsoft.Json
+open System
+
+type OptionConverter() =
+    inherit JsonConverter()
+    
+    override _.CanConvert(objectType: Type) =
+        objectType.IsGenericType && objectType.GetGenericTypeDefinition() = typedefof<option<_>>
+    
+    override _.WriteJson(writer: JsonWriter, value: obj, serializer: JsonSerializer) =
+        match value with
+        | null -> writer.WriteNull()
+        | _ ->
+            let optionType = value.GetType()
+            let someValue = optionType.GetProperty("Value").GetValue(value)
+            if someValue = null then
+                writer.WriteNull()
+            else
+                serializer.Serialize(writer, someValue)
+    
+    override _.ReadJson(reader: JsonReader, objectType: Type, existingValue: obj, serializer: JsonSerializer) =
+        if reader.TokenType = JsonToken.Null then
+            null
+        else
+            let innerType = objectType.GetGenericArguments().[0]
+            let value = serializer.Deserialize(reader, innerType)
+            let someMethod = objectType.GetMethod("Some")
+            someMethod.Invoke(null, [| value |])
+
 open HighSpeedCardDealer
 
-// Game state
+type BlackjackResult =
+    | Push
+    | Win
+    | Loss
+
 type PlayerCards =
     { UserId: string
       Cards: int list
-      Finished: bool }
+      Total: int
+      Result: BlackjackResult option }
 
 type Round =
     { Environment: LightningEnvironment
@@ -29,16 +63,15 @@ type GameState =
       RoundStartTime: int64 option
       RoundEndTime: int64 option
       Dealer: HighSpeedCardDealer.DealerState
-      BlackjackRound: Round 
-      Results: list<{| Cards: list<string>; Total: int; UserId: string; Won: bool |}> option }
+      BlackjackRound: Round
+      Results: PlayerCards list option }
 
-// Add this with your other mutable state variables (near totalStartingCards)
 let webSocketUsers = new ConcurrentDictionary<WebSocket, string>()
 
 let initializeBlackJackRound () =
     let env = new LightningEnvironment "./blackjack_db"
     env.MaxDatabases <- 1
-    env.MapSize <- 1073741824L // 1GB
+    env.MapSize <- 1073741824L
     env.Open(EnvironmentOpenFlags.WriteMap ||| EnvironmentOpenFlags.MapAsync)
 
     let db =
@@ -47,14 +80,12 @@ let initializeBlackJackRound () =
         let database =
             txn.OpenDatabase(configuration = DatabaseConfiguration(Flags = DatabaseOpenFlags.Create))
 
-        // Drop all data from the database
         txn.TruncateDatabase(database) |> ignore
 
         txn.Commit() |> ignore
         database
 
     { Environment = env; Database = db }
-
 
 let mutable gameState =
     { RoundActive = true
@@ -66,32 +97,44 @@ let mutable gameState =
       DealerTotal = 0
       Results = None }
 
-// Initialize total starting cards count
-
 let webSockets = new ConcurrentBag<WebSocket>()
 
-// Track total starting cards for the dealer
 let totalStartingCards = totalCards
 
-// Timer state
 let roundCountdown = 10
 let nextRoundWaitTime = 5
 let mutable _roundCountdown = roundCountdown
 let mutable newRoundCountdown = 0
 
-// Database operations
 let userCardsKey userId = sprintf "user_cards_%s" userId
 
-let savePlayerCards userId cards finished =
+let cardValue card =
+    let value = card % 13 + 1
+    if value > 10 then 10 else value
+
+let handValue cards =
+    let total = cards |> List.sumBy cardValue
+    let aces = cards |> List.filter (fun c -> c % 13 + 1 = 1) |> List.length
+
+    let rec adjustForAces total aces =
+        if total > 21 && aces > 0 then
+            adjustForAces (total - 10) (aces - 1)
+        else
+            total
+
+    adjustForAces total aces
+
+let savePlayerCards userId cards =
     use txn = gameState.BlackjackRound.Environment.BeginTransaction()
     use db = txn.OpenDatabase()
 
     let playerData =
         { UserId = userId
           Cards = cards
-          Finished = finished }
+          Total = handValue cards
+          Result = None }
 
-    let json = JsonSerializer.Serialize playerData
+    let json = JsonConvert.SerializeObject playerData
     let keyBytes = System.Text.Encoding.UTF8.GetBytes(userCardsKey userId)
     let valueBytes = System.Text.Encoding.UTF8.GetBytes json
     txn.Put(db, keyBytes, valueBytes) |> ignore
@@ -100,9 +143,9 @@ let savePlayerCards userId cards finished =
 let loadAllPlayerCards () =
 
     use txn = gameState.BlackjackRound.Environment.BeginTransaction()
-    // Use the existing database instead of creating a new one
+
     use cursor = txn.CreateCursor gameState.BlackjackRound.Database
-    let mutable playerCardsList = []
+    let mutable playerCardsList: PlayerCards list = []
 
     let struct (firstResult, firstKey, firstValue) = cursor.First()
 
@@ -111,7 +154,7 @@ let loadAllPlayerCards () =
 
         if valueBytes.Length > 0 then
             let json = System.Text.Encoding.UTF8.GetString(valueBytes)
-            let playerData = JsonSerializer.Deserialize<PlayerCards> json
+            let playerData = JsonConvert.DeserializeObject<PlayerCards> json
             playerCardsList <- playerData :: playerCardsList
 
         let mutable continue' = true
@@ -124,7 +167,7 @@ let loadAllPlayerCards () =
 
                 if valueBytes.Length > 0 then
                     let json = System.Text.Encoding.UTF8.GetString(valueBytes)
-                    let playerData = JsonSerializer.Deserialize<PlayerCards> json
+                    let playerData = JsonConvert.DeserializeObject<PlayerCards> json
                     playerCardsList <- playerData :: playerCardsList
             else
                 continue' <- false
@@ -143,7 +186,7 @@ let loadPlayerCards userId =
 
         if success then
             let json = System.Text.Encoding.UTF8.GetString(value.AsSpan())
-            JsonSerializer.Deserialize<PlayerCards>(json) |> Some
+            JsonConvert.DeserializeObject<PlayerCards>(json) |> Some
         else
             None
     with _ ->
@@ -157,22 +200,6 @@ let cardToString card =
     let rank = ranks.[card % 13]
     rank + suit
 
-let cardValue card =
-    let value = card % 13 + 1
-    if value > 10 then 10 else value
-
-let handValue cards =
-    let total = cards |> List.sumBy cardValue
-    let aces = cards |> List.filter (fun c -> c % 13 + 1 = 1) |> List.length
-
-    let rec adjustForAces total aces =
-        if total > 21 && aces > 0 then
-            adjustForAces (total - 10) (aces - 1)
-        else
-            total
-
-    adjustForAces total aces
-
 let createPlayerResponse (userId: string option) (cards: Card list option) =
     {| UserId = userId
        Cards = cards |> Option.map (List.map cardToString)
@@ -181,8 +208,7 @@ let createPlayerResponse (userId: string option) (cards: Card list option) =
        TotalStartingCards = totalStartingCards |}
 
 let broadcastMessage message =
-    let data = System.Text.Encoding.UTF8.GetBytes(JsonSerializer.Serialize message)
-
+    let data = System.Text.Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(message))
     webSockets
     |> Seq.filter (fun ws -> ws.State = WebSocketState.Open)
     |> Seq.iter (fun ws ->
@@ -192,29 +218,29 @@ let broadcastMessage message =
         with _ ->
             ())
 
-// Game logic
 let dealInitialCards userId =
     let card1 = dealCard gameState.Dealer
     let card2 = dealCard gameState.Dealer
     let cards: Card list = [ card1; card2 ]
-    savePlayerCards userId cards false
+    savePlayerCards userId cards
 
     let playerCards =
         { UserId = userId
           Cards = cards
-          Finished = false }
+          Total = handValue cards
+          Result = None }
 
     printfn "🆕 Player %s joined - Initial cards: %A (Total: %d)" userId cards (handValue cards)
     playerCards
 
 let hitPlayer userId =
     match loadPlayerCards userId with
-    | Some player when not player.Finished ->
+    | Some(player: PlayerCards) ->
         let stopwatch = System.Diagnostics.Stopwatch.StartNew()
         let newCard = dealCard gameState.Dealer
         stopwatch.Stop()
         let updatedCards = newCard :: player.Cards
-        savePlayerCards userId updatedCards player.Finished
+        savePlayerCards userId updatedCards
         let updatedPlayer = { player with Cards = updatedCards }
 
         printfn
@@ -240,7 +266,6 @@ let playDealerHand providedCards =
 
     dealerPlay providedCards
 
-
 let startNewRound () =
     printfn "🎲 NEW ROUND STARTING!"
     let card1 = dealCard gameState.Dealer
@@ -264,11 +289,36 @@ let startNewRound () =
 
     _roundCountdown <- roundCountdown
     newRoundCountdown <- 0
+
     broadcastMessage
         {| Type = "new_round"
            RoundEndTime = roundEndTime
            DealerCards = [ cardToString card2 ]
            DealerTotal = handValue [ card2 ] |}
+
+let convertPlayerCards
+    (playerCardsOpt: option<list<PlayerCards>>)
+    : array<
+          {| Cards: string list
+             Total: int
+             UserId: string
+             Result: string |}
+       >
+    =
+    match playerCardsOpt with
+    | None -> [||]
+    | Some playerCardsList ->
+        playerCardsList
+        |> List.map (fun pc ->
+            {| Cards = pc.Cards |> List.map cardToString
+               Total = pc.Total
+               UserId = pc.UserId
+               Result =
+                match pc.Result with
+                | Some result -> result.ToString()
+                | None -> null |})
+        |> List.toArray
+
 
 let endRound () =
     printfn "⏰ Round ending! Dealer playing..."
@@ -285,52 +335,59 @@ let endRound () =
         |> List.map (fun (player: PlayerCards) ->
             let playerTotal = handValue player.Cards
 
-            let won =
-                if playerTotal > 21 then false
-                elif dealerTotal > 21 then true
-                elif playerTotal > dealerTotal then true
-                else false
+            let blackjackResult =
+                if playerTotal > 21 then Loss
+                elif dealerTotal > 21 then Win
+                elif playerTotal > dealerTotal then Win
+                elif playerTotal = dealerTotal then Push
+                else Loss
 
-            let result =
-                {| UserId = player.UserId
-                   Cards = player.Cards |> List.map cardToString
-                   Won = won
-                   Total = playerTotal |}
+            let resultText =
+                match blackjackResult with
+                | Win -> "WIN"
+                | Loss -> "LOSS"
+                | Push -> "PUSH"
 
-            printfn
-                "👤 Player %s: %A (Total: %d) - %s"
-                player.UserId
-                player.Cards
-                playerTotal
-                (if won then "WON" else "LOST")
+            let result: PlayerCards =
+                { UserId = player.UserId
+                  Cards = player.Cards
+                  Total = playerTotal
+                  Result = Some blackjackResult }
+
+            printfn "👤 Player %s: %A (Total: %d) - %s" player.UserId player.Cards playerTotal resultText
 
             result)
-    
-    gameState <- { gameState with RoundActive = false; DealerCards = dealerFinalCards; Results = Some results }
+
+    let roundStartTime =
+        DateTimeOffset.UtcNow.AddSeconds(nextRoundWaitTime).ToUnixTimeSeconds()
+
+    gameState <-
+        { gameState with
+            RoundStartTime = Some roundStartTime
+            RoundActive = false
+            DealerCards = dealerFinalCards
+            Results = Some results }
 
     broadcastMessage
         {| Type = "round_results"
            DealerCards = dealerFinalCards |> List.map cardToString
            DealerTotal = dealerTotal
-           RoundStartTime = DateTimeOffset.UtcNow.AddSeconds(nextRoundWaitTime).ToUnixTimeSeconds()
-           Results = results |}
+           RoundStartTime = roundStartTime
+           Results = convertPlayerCards (Some results) |}
 
     newRoundCountdown <- nextRoundWaitTime
 
-// Single timer to handle both round countdown and new round countdown
 let gameTimer =
     new Timer(
         fun _ ->
             try
                 if gameState.RoundActive then
-                    // Active round countdown
                     printfn "⌛ Round active - %d seconds remaining..." _roundCountdown
                     _roundCountdown <- _roundCountdown - 1
 
                     if _roundCountdown <= 0 then
                         endRound ()
                 elif newRoundCountdown > 0 then
-                    // New round countdown
                     printfn "🕐 Next round starts in %d seconds..." newRoundCountdown
                     newRoundCountdown <- newRoundCountdown - 1
 
@@ -343,20 +400,19 @@ let gameTimer =
         , 1000
     )
 
-// Web handlers
 let hitHandler: HttpHandler =
     fun next ctx ->
         task {
             let! body = ctx.ReadBodyFromRequestAsync()
-            let data = JsonSerializer.Deserialize<{| UserId: string |}> body
+            let data = JsonConvert.DeserializeObject<{| UserId: string |}> body
 
             if not gameState.RoundActive then
                 return! json {| Error = "Round not active" |} next ctx
             else
                 let result =
                     match loadPlayerCards data.UserId with
-                    | Some existing -> hitPlayer data.UserId // Player exists, hit them
-                    | None -> Some(dealInitialCards data.UserId) // New player, deal initial cards
+                    | Some existing -> hitPlayer data.UserId
+                    | None -> Some(dealInitialCards data.UserId)
 
                 match result with
                 | Some cards ->
@@ -370,32 +426,44 @@ let hitHandler: HttpHandler =
                 | None -> return! json {| Error = "Cannot deal card" |} next ctx
         }
 
-type LoadRoundData = {
-    UserId: string
-    Cards: string array
-    Total: int
-    RemainingCards: int
-    TotalStartingCards: int
-    CurrentlyConnectedPlayers: array<{| Cards: list<string>; Total: int; UserId: string; Won: bool |}>
-    Finished: bool
-    FirstDealerCard: string
-    RoundEndTime: int64
-    DealerTotal: int
-}
+type LoadRoundData =
+    { UserId: string
+      Cards: string array
+      Total: int
+      RemainingCards: int
+      TotalStartingCards: int
+      CurrentlyConnectedPlayers:
+          array<
+              {| Cards: string list
+                 Total: int
+                 UserId: string |}
+           >
+      FirstDealerCard: string
+      RoundEndTime: int64
+      DealerTotal: int }
 
-type LoadResultsData = {
-    UserId: string
-    Cards: string array
-    Total: int
-    RemainingCards: int
-    TotalStartingCards: int
-    CurrentlyConnectedPlayers: PlayerCards array
-    Finished: bool
-    AllDealerCards: string array
-    DealerTotal: int
-    PlayerResults: list<{| Cards: list<string>; Total: int; UserId: string; Won: bool |}>
-    RoundStartTime: int64
-}
+type LoadResultsData =
+    { UserId: string
+      Cards: string array
+      Total: int
+      RemainingCards: int
+      TotalStartingCards: int
+      CurrentlyConnectedPlayers:
+          array<
+              {| Cards: string list
+                 Total: int
+                 UserId: string |}
+           >
+      AllDealerCards: string array
+      DealerTotal: int
+      PlayerResults:
+          array<
+              {| Cards: string list
+                 Total: int
+                 UserId: string
+                 Result: string |}
+           >
+      RoundStartTime: int64 }
 
 type GameResponse =
     | LOAD_ROUND of LoadRoundData
@@ -405,47 +473,59 @@ let getUserCardsHandler userId : HttpHandler =
     fun next ctx ->
         task {
             let playerCards = loadPlayerCards userId
-            let response = createPlayerResponse (Some userId) (playerCards |> Option.map (fun pc -> pc.Cards))
-            let players = loadAllPlayerCards ()
 
+            let response =
+                createPlayerResponse (Some userId) (playerCards |> Option.map (fun pc -> pc.Cards))
+
+            let players =
+                loadAllPlayerCards ()
+                |> List.map (fun (player: PlayerCards) ->
+                    {| Cards = player.Cards |> List.map cardToString
+                       UserId = player.UserId
+                       Total = handValue player.Cards |})
+                |> List.toArray
+
+            let commonFields =
+                {| UserId = response.UserId |> Option.defaultValue null
+                   Cards = response.Cards |> Option.map Array.ofList |> Option.defaultValue null
+                   Total = response.Total |> Option.defaultValue 0
+                   RemainingCards = response.RemainingCards
+                   TotalStartingCards = response.TotalStartingCards
+                   DealerTotal = gameState.DealerTotal |}
 
             let gameResponse =
                 if gameState.RoundActive then
-                    LOAD_ROUND {
-                        UserId = response.UserId |> Option.defaultValue null
-                        Cards = response.Cards |> Option.map Array.ofList |> Option.defaultValue null
-                        Total = response.Total |> Option.defaultValue 0
-                        RemainingCards = response.RemainingCards
-                        TotalStartingCards = response.TotalStartingCards
-                        CurrentlyConnectedPlayers = players |> List.map (fun (player: PlayerCards) -> {|
-                            Cards = player.Cards |> List.map cardToString;
-                            UserId = player.UserId;
-                            Total = handValue player.Cards;
-                            Won = false
-                        |}) |> List.toArray
-                        Finished = playerCards |> Option.map (fun pc -> pc.Finished) |> Option.defaultValue false
-                        FirstDealerCard = if gameState.DealerCards.IsEmpty then null else cardToString gameState.DealerCards.Head
-                        RoundEndTime = gameState.RoundEndTime |> Option.defaultValue 0L
-                        DealerTotal = gameState.DealerTotal
-                    }
+                    LOAD_ROUND
+                        { UserId = commonFields.UserId
+                          Cards = commonFields.Cards
+                          Total = commonFields.Total
+                          RemainingCards = commonFields.RemainingCards
+                          TotalStartingCards = commonFields.TotalStartingCards
+                          CurrentlyConnectedPlayers = players
+                          
+                          DealerTotal =
+                            if gameState.DealerCards.IsEmpty then 0
+                            else handValue [(List.last gameState.DealerCards)]
+                          FirstDealerCard =
+                            if gameState.DealerCards.IsEmpty then null
+                            else cardToString (List.last gameState.DealerCards)
+                          RoundEndTime = gameState.RoundEndTime |> Option.defaultValue 0L }
                 else
-                    LOAD_RESULTS {
-                        UserId = response.UserId |> Option.defaultValue null
-                        Cards = response.Cards |> Option.map Array.ofList |> Option.defaultValue null
-                        Total = response.Total |> Option.defaultValue 0
-                        RemainingCards = response.RemainingCards
-                        TotalStartingCards = response.TotalStartingCards
-                        CurrentlyConnectedPlayers = loadAllPlayerCards () |> List.toArray
-                        Finished = playerCards |> Option.map (fun pc -> pc.Finished) |> Option.defaultValue false
-                        AllDealerCards = gameState.DealerCards |> List.map cardToString |> List.toArray
-                        DealerTotal = gameState.DealerTotal
-                        PlayerResults = gameState.Results |> Option.defaultValue []
-                        RoundStartTime = gameState.RoundStartTime |> Option.defaultValue 0L
-                    }
-            
+                    LOAD_RESULTS
+                        { UserId = commonFields.UserId
+                          Cards = commonFields.Cards
+                          Total = commonFields.Total
+                          RemainingCards = commonFields.RemainingCards
+                          TotalStartingCards = commonFields.TotalStartingCards
+                          CurrentlyConnectedPlayers = players
+                          DealerTotal = commonFields.DealerTotal
+
+                          AllDealerCards = gameState.DealerCards |> List.map cardToString |> List.toArray
+                          PlayerResults = convertPlayerCards gameState.Results
+                          RoundStartTime = gameState.RoundStartTime |> Option.defaultValue 0L }
+
             return! json gameResponse next ctx
         }
-
 
 let websocketHandler: HttpHandler =
     fun next ctx ->
@@ -461,20 +541,18 @@ let websocketHandler: HttpHandler =
                         let! result = webSocket.ReceiveAsync(ArraySegment buffer, CancellationToken.None)
 
                         if result.MessageType = WebSocketMessageType.Text then
-                            // Parse message to get user ID and store the mapping
                             let message = System.Text.Encoding.UTF8.GetString(buffer, 0, result.Count)
 
                             try
-                                let data = JsonSerializer.Deserialize<{| UserId: string |}> message
+                                let data = JsonConvert.DeserializeObject<{| UserId: string |}> message
                                 webSocketUsers.TryAdd(webSocket, data.UserId) |> ignore
                             with _ ->
-                                () // Ignore parsing errors
+                                ()
                         elif result.MessageType = WebSocketMessageType.Close then
                             do! webSocket.CloseAsync(WebSocketCloseStatus.NormalClosure, "", CancellationToken.None)
                 with _ ->
                     ()
 
-                // Clean up when connection closes
                 webSocketUsers.TryRemove(webSocket) |> ignore
 
                 return Some ctx
@@ -482,13 +560,17 @@ let websocketHandler: HttpHandler =
                 return! next ctx
         }
 
-// Routes
 let webApp =
     router {
         post "/hit" hitHandler
         getf "/cards/%s" getUserCardsHandler
         get "/ws" websocketHandler
     }
+
+JsonConvert.DefaultSettings <- fun () ->
+    let settings = JsonSerializerSettings()
+    settings.Converters.Add(OptionConverter())
+    settings
 
 let app =
     application {
@@ -508,9 +590,7 @@ let main args =
     printfn "🎲 Blackjack server starting..."
     printfn "🎲 NEW ROUND STARTING!"
 
-    // Keep the application running and prevent timer disposal
     run app
 
-    // Clean up timer when application shuts down
     gameTimer.Dispose()
     0
