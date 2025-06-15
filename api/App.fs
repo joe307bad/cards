@@ -319,7 +319,6 @@ let convertPlayerCards
                 | None -> null |})
         |> List.toArray
 
-
 let endRound () =
     printfn "⏰ Round ending! Dealer playing..."
 

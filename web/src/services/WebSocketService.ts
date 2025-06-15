@@ -106,6 +106,7 @@ type ProcessedResult =
 		remainingCards: number;
 		isBusted: boolean;
 		message: string;
+		totalStartingCards: number;
 	}
 	| {
 		type: "UNKNOWN";
@@ -154,6 +155,7 @@ function processWebSocketMessage(rawMessage: string): ProcessedResult {
 					playerId: message.UserId,
 					cards: message.Cards,
 					total: message.Total,
+					totalStartingCards: message.TotalStartingCards,
 					remainingCards: message.RemainingCards,
 					isBusted,
 					message: `${message.UserId}: ${cardCount} cards, total ${message.Total}${isBusted ? ' (BUST)' : ''}`
@@ -192,6 +194,8 @@ export interface GameState {
 	roundStartTime: number
 	roundEndTime: number
 	countdownTo: number
+	remaingingCards: number
+	totalStartingCards: number
 }
 
 export type GameStateSnapshot = {
@@ -213,7 +217,9 @@ const gameWebSocketState = proxy({
 		gameStatus: "",
 		roundStartTime: 0,
 		roundEndTime: 0,
-		countdownTo: 0
+		countdownTo: 0,
+		remaingingCards: 0,
+		totalStartingCards: 0
 	} as unknown as GameState,
 	lastError: null as Error | null,
 	ws: null as WebSocket | null
@@ -250,6 +256,8 @@ const makeGameWebSocketServiceLive = Layer.effect(
 							gameState.dealerHand = loadResults.allDealerCards.map(convertCardCodeToCard).reverse()
 							gameState.dealerScore = loadResults.dealerTotal
 							gameState.gameStatus = 'game_ended'
+							gameState.remaingingCards = loadResults.remainingCards;
+							gameState.totalStartingCards = loadResults.totalStartingCards;
 
 							loadResults.playerResults.forEach(result => {
 								gameState.playerHands[result.userId] = {
@@ -267,6 +275,8 @@ const makeGameWebSocketServiceLive = Layer.effect(
 							gameState.countdownTo = loadRound.roundEndTime
 							gameState.dealerScore = loadRound.dealerTotal
 							gameState.gameStatus = 'playing';
+							gameState.totalStartingCards = loadRound.totalStartingCards;
+							gameState.remaingingCards = loadRound.remainingCards;
 
 							loadRound.currentlyConnectedPlayers.forEach(result => {
 								gameState.playerHands[result.userId] = {
@@ -312,6 +322,9 @@ const makeGameWebSocketServiceLive = Layer.effect(
 												score: processed.total,
 												state: 'playing'
 											}
+											console.log(processed.remainingCards)
+											gameState.remaingingCards = processed.remainingCards
+											gameState.totalStartingCards = processed.totalStartingCards
 											break;
 										case 'ROUND_RESULTS':
 											gameState.countdownTo = processed.roundStartTime
