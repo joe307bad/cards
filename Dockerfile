@@ -50,7 +50,8 @@ RUN mkdir -p /app/data && chown -R app:app /app/data
 # Set environment variables
 ENV ASPNETCORE_ENVIRONMENT=Production
 ENV ASPNETCORE_URLS=http://+:8080
-ENV ConnectionStrings__DefaultConnection="Data Source=/app/data/blackjack.db"
+ENV LANG=C.UTF-8
+ENV LC_ALL=C.UTF-8
 
 # Expose port
 EXPOSE 8080

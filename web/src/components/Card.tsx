@@ -7,10 +7,10 @@ import * as THREE from 'three';
 const suits = ['H', 'D', 'C', 'S']; // Hearts, Diamonds, Clubs, Spades
 const ranks = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
 const suitSymbols = {
-	'H': '♥',
-	'D': '♦',
-	'C': '♣',
-	'S': '♠'
+  'H': '\u2665', // ♥ Hearts
+  'D': '\u2666', // ♦ Diamonds  
+  'C': '\u2663', // ♣ Clubs
+  'S': '\u2660'  // ♠ Spades
 };
 const suitColors = {
 	'H': '#dc2626', // red
@@ -130,7 +130,7 @@ function CardBack() {
 				anchorX="center"
 				anchorY="middle"
 			>
-				♠♥♣♦
+				{'\u2660\u2665\u2663\u2666'}
 			</Text>
 		</>
 	);

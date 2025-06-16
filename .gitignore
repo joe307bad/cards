@@ -6,3 +6,6 @@ api/wwwroot
 .idea/deck.iml
 .idea/modules.xml
 .idea/vcs.xml
+*.mdb
+blackjack_db
+blackjack_dealer_db

@@ -34,6 +34,7 @@ module.exports = (env, argv) => {
           use: {
             loader: 'babel-loader',
             options: {
+              inputSourceMap: false,
               presets: [
                 ['@babel/env', {
                   // Only transform what's needed for target browsers in production
@@ -58,7 +59,7 @@ module.exports = (env, argv) => {
     
     plugins: [
       new webpack.DefinePlugin({
-        'process.env.URL': JSON.stringify(process.env.URL || 'localhost:8080'),
+        'process.env.URL': JSON.stringify(process.env.URL || 'localhost:5000'),
         'process.env.APP_VERSION': JSON.stringify(process.env.APP_VERSION || '1.0.0'),
       }),
       new HtmlWebpackPlugin({
