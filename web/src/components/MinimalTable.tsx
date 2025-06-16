@@ -118,7 +118,7 @@ export default function MinimalTable(props: { gameState: ReturnType<typeof useBl
 							<div className='flex-1 flex items-center flex-row'>
 
 								<Typography color="white" variant="h5">Dealer</Typography>
-								<p className="pl-2">♠</p>
+								<p className="pl-2">{'\u2660'}</p>
 								{gameState.dealerScore > 0 && <Typography className='pl-2' color="white" variant="h5">{gameState.dealerScore}</Typography>}
 								{dealerStatus && (
 									<p className={`${dealerStatus.color} text-sm pl-2 align-left font-semibold`}>
@@ -142,7 +142,7 @@ export default function MinimalTable(props: { gameState: ReturnType<typeof useBl
 					<Card className="min-h-[240px] rounded-none bg-[transparent] flex flex-col p-5 bg-[var(--color-green-700)]">
 						<div className="flex items-center mb-3">
 							<Typography color="white" variant="h6">{playerName} (You)</Typography>
-							<p className="pl-2 text-white">♣</p>
+							<p className="pl-2 text-white">{'\u2665'}</p>
 							{currentPlayerHand && <Typography className="pl-2" color="white" variant="h6">{currentPlayerHand.score}</Typography>}
 						</div>
 						<div className="flex-1">

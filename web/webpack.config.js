@@ -34,6 +34,7 @@ module.exports = (env, argv) => {
           use: {
             loader: 'babel-loader',
             options: {
+              inputSourceMap: false,
               presets: [
                 ['@babel/env', {
                   // Only transform what's needed for target browsers in production

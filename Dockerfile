@@ -10,7 +10,7 @@ RUN yarn install --frozen-lockfile
 
 # Copy web source and build
 COPY web/ ./
-ENV URL=cards.joebad.com
+ENV URL=localhost:8080
 RUN yarn build
 
 # F# build stage
@@ -50,10 +50,8 @@ RUN mkdir -p /app/data && chown -R app:app /app/data
 # Set environment variables
 ENV ASPNETCORE_ENVIRONMENT=Production
 ENV ASPNETCORE_URLS=http://+:8080
-ENV ConnectionStrings__DefaultConnection="Data Source=/app/data/blackjack.db"
-ENV MMAP_COUNTER_ENV=production
-ENV MMAP_COUNTER_PATH=/app/data/counters
-ENV MMAP_COUNTER_MAX_FILES=500
+ENV LANG=C.UTF-8
+ENV LC_ALL=C.UTF-8
 
 # Expose port
 EXPOSE 8080

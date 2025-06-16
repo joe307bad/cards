@@ -40,6 +40,7 @@ type OptionConverter() =
             someMethod.Invoke(null, [| value |])
 
 open HighSpeedCardDealer
+open System.IO
 
 type BlackjackResult =
     | Push
@@ -66,10 +67,22 @@ type GameState =
       BlackjackRound: Round
       Results: PlayerCards list option }
 
+
+let getDbPath () =
+    if Directory.Exists("/app/data/") then
+        "/app/data/blackjack.db"
+    else
+        "./blackjack.db"
+
 let webSocketUsers = new ConcurrentDictionary<WebSocket, string>()
 
 let initializeBlackJackRound () =
-    let env = new LightningEnvironment "./blackjack_db"
+    let getDbPath () =
+        if Directory.Exists("/app/data/") then
+            "/app/data/blackjack_db"
+        else
+            "./blackjack_db"
+    let env = new LightningEnvironment (getDbPath ())
     env.MaxDatabases <- 1
     env.MapSize <- 1073741824L
     env.Open(EnvironmentOpenFlags.WriteMap ||| EnvironmentOpenFlags.MapAsync)
@@ -87,12 +100,17 @@ let initializeBlackJackRound () =
 
     { Environment = env; Database = db }
 
+let getDealerDbPath () =
+        if Directory.Exists("/app/data/") then
+            "/app/data/blackjack_dealer_db"
+        else
+            "./blackjack_dealer_db"
 let mutable gameState =
     { RoundActive = true
       RoundStartTime = Some 0
       RoundEndTime = Some 0
       DealerCards = []
-      Dealer = initializeDealer "./blackjack_dealer_db"
+      Dealer = initializeDealer (getDealerDbPath())
       BlackjackRound = initializeBlackJackRound ()
       DealerTotal = 0
       Results = None }
@@ -571,11 +589,23 @@ JsonConvert.DefaultSettings <- fun () ->
     settings.Converters.Add(OptionConverter())
     settings
 
+let configureServices (services: IServiceCollection) =
+    services.AddCors(fun options ->
+        options.AddPolicy("AllowAll", fun builder ->
+            builder
+                .AllowAnyOrigin()
+                .AllowAnyMethod()
+                .AllowAnyHeader()
+            |> ignore
+        )
+    ) |> ignore
+    services
+
 let app =
     application {
         use_router webApp
         use_static "wwwroot"
-        service_config (fun services -> services.AddCors())
+        service_config (fun services -> configureServices(services))
 
         app_config (fun app ->
             app.UseCors(fun builder -> builder.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader() |> ignore)
@@ -587,8 +617,8 @@ let app =
 [<EntryPoint>]
 let main args =
     printfn "🎲 Blackjack server starting..."
-    printfn "🎲 NEW ROUND STARTING!"
-
+    startNewRound()
+    
     run app
 
     gameTimer.Dispose()
