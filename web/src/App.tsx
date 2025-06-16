@@ -1,6 +1,5 @@
 import { useEffect } from 'react';
 import {
-  useBlackjackActions,
   useBlackjackState,
   usePlayerName,
   useWsService,
@@ -8,7 +7,6 @@ import {
 import MinimalTable from './components/MinimalTable';
 
 export function App() {
-  const actions = useBlackjackActions();
   const state = useBlackjackState();
   const ws = useWsService();
   const playerName = usePlayerName();
@@ -19,5 +17,5 @@ export function App() {
     }
   }, [playerName]);
 
-  return <MinimalTable hit={actions.hit} gameState={state} />;
+  return <MinimalTable gameState={state} />;
 }

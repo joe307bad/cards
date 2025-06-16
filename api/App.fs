@@ -49,7 +49,7 @@ type BlackjackResult =
 
 type PlayerCards =
     { UserId: string
-      Cards: int list
+      Cards: string list
       Total: int
       Result: BlackjackResult option }
 
@@ -65,7 +65,7 @@ type Round =
 
 type GameState =
     { RoundActive: bool
-      DealerCards: int list
+      DealerCards: string list
       DealerTotal: int
       RoundStartTime: int64 option
       RoundEndTime: int64 option
@@ -132,22 +132,6 @@ let mutable newRoundCountdown = 0
 
 let userCardsKey userId = sprintf "user_cards_%s" userId
 
-let cardValue card =
-    let value = card % 13 + 1
-    if value > 10 then 10 else value
-
-let handValue cards =
-    let total = cards |> List.sumBy cardValue
-    let aces = cards |> List.filter (fun c -> c % 13 + 1 = 1) |> List.length
-
-    let rec adjustForAces total aces =
-        if total > 21 && aces > 0 then
-            adjustForAces (total - 10) (aces - 1)
-        else
-            total
-
-    adjustForAces total aces
-
 // Clear the database instead of creating a new one
 let clearBlackjackDatabase () =
     use txn = gameState.BlackjackRound.Environment.BeginTransaction()
@@ -161,7 +145,7 @@ let savePlayerCards userId cards =
     let playerData =
         { UserId = userId
           Cards = cards
-          Total = handValue cards
+          Total = calculateCardValue cards
           Result = None }
 
     let json = JsonConvert.SerializeObject playerData
@@ -220,18 +204,10 @@ let loadPlayerCards userId =
     with _ ->
         None
 
-// Helper functions
-let cardToString card =
-    let suits = [| "S"; "H"; "D"; "C" |]
-    let ranks = [| "A"; "2"; "3"; "4"; "5"; "6"; "7"; "8"; "9"; "10"; "J"; "Q"; "K" |]
-    let suit = suits.[card % 4]
-    let rank = ranks.[card % 13]
-    rank + suit
-
 let createPlayerResponse (userId: string option) (cards: Card list option) =
     {| UserId = userId
-       Cards = cards |> Option.map (List.map cardToString)
-       Total = cards |> Option.map handValue
+       Cards = cards
+       Total = cards |> Option.map calculateCardValue
        RemainingCards = getRemainingCards gameState.Dealer
        TotalStartingCards = totalStartingCards |}
 
@@ -255,16 +231,16 @@ let dealInitialCards userId =
     let playerCards =
         { UserId = userId
           Cards = cards
-          Total = handValue cards
+          Total = calculateCardValue cards
           Result = None }
 
-    printfn "🆕 Player %s joined - Initial cards: %A (Total: %d)" userId cards (handValue cards)
+    printfn "🆕 Player %s joined - Initial cards: %A (Total: %d)" userId cards (calculateCardValue cards)
     playerCards
 
 let hitPlayer userId =
     match loadPlayerCards userId with
     | Some(player: PlayerCards) ->
-        let playerTotal = handValue player.Cards;
+        let playerTotal = calculateCardValue player.Cards;
 
         let blackjackResult: BlackjackResult option =
                     if playerTotal > 21 then Some Loss
@@ -283,19 +259,19 @@ let hitPlayer userId =
             let updatedPlayer = { player with Cards = updatedCards }
 
             printfn
-                "🃏 Player %s hit - got card %d in %dms - Hand: %A (Total: %d)"
+                "🃏 Player %s hit - got card %s in %dms - Hand: %A (Total: %d)"
                 userId
                 newCard
                 stopwatch.ElapsedMilliseconds
                 updatedCards
-                (handValue updatedCards)
+                (calculateCardValue updatedCards)
 
             Some updatedPlayer
     | _ -> None
 
 let playDealerHand providedCards =
     let rec dealerPlay cards =
-        let total = handValue cards
+        let total = calculateCardValue cards
 
         if total < 17 then
             let newCard = dealCard gameState.Dealer
@@ -313,8 +289,8 @@ let startNewRound () =
     
     let card1 = dealCard gameState.Dealer
     let card2 = dealCard gameState.Dealer
-    let cards = [ cardToString card1; cardToString card2 ]
-    let dealerTotal = handValue [ card1; card2 ]
+    let cards = [ card1; card2 ]
+    let dealerTotal = calculateCardValue cards
     printfn "🎰 DEALER STARTING HAND: %A (Total: %d)" cards dealerTotal
 
     let roundEndTime =
@@ -322,8 +298,8 @@ let startNewRound () =
 
     gameState <-
         { RoundActive = true
-          DealerCards = [ card1; card2 ]
-          DealerTotal = handValue [ card1; card2 ]
+          DealerCards = cards
+          DealerTotal = calculateCardValue [ card1; card2 ]
           RoundStartTime = None
           RoundEndTime = Some roundEndTime
           BlackjackRound = gameState.BlackjackRound  // Reuse the existing round
@@ -336,8 +312,8 @@ let startNewRound () =
     broadcastMessage
         {| Type = "new_round"
            RoundEndTime = roundEndTime
-           DealerCards = [ cardToString card2 ]
-           DealerTotal = handValue [ card2 ] |}
+           DealerCards = [ card2 ]
+           DealerTotal = calculateCardValue [ card2 ] |}
 
 let convertPlayerCards
     (playerCardsOpt: option<list<PlayerCards>>)
@@ -353,7 +329,7 @@ let convertPlayerCards
     | Some playerCardsList ->
         playerCardsList
         |> List.map (fun pc ->
-            {| Cards = pc.Cards |> List.map cardToString
+            {| Cards = pc.Cards
                Total = pc.Total
                UserId = pc.UserId
                Result =
@@ -366,16 +342,16 @@ let endRound () =
     printfn "⏰ Round ending! Dealer playing..."
 
     let dealerFinalCards = playDealerHand gameState.DealerCards
-    let dealerTotal = handValue dealerFinalCards
+    let dealerTotal = calculateCardValue dealerFinalCards
 
-    printfn "🎰 DEALER FINAL HAND: %A (Total: %d)" (dealerFinalCards |> List.map cardToString) dealerTotal
+    printfn "🎰 DEALER FINAL HAND: %A (Total: %d)" dealerFinalCards dealerTotal
 
     let players = loadAllPlayerCards ()
 
     let results =
         players
         |> List.map (fun (player: PlayerCards) ->
-            let playerTotal = handValue player.Cards
+            let playerTotal = calculateCardValue player.Cards
 
             let blackjackResult =
                 if playerTotal > 21 then Loss
@@ -412,7 +388,7 @@ let endRound () =
 
     broadcastMessage
         {| Type = "round_results"
-           DealerCards = dealerFinalCards |> List.map cardToString
+           DealerCards = dealerFinalCards
            DealerTotal = dealerTotal
            RoundStartTime = roundStartTime
            Results = convertPlayerCards (Some results) |}
@@ -522,9 +498,9 @@ let getUserCardsHandler userId : HttpHandler =
             let players =
                 loadAllPlayerCards ()
                 |> List.map (fun (player: PlayerCards) ->
-                    {| Cards = player.Cards |> List.map cardToString
+                    {| Cards = player.Cards
                        UserId = player.UserId
-                       Total = handValue player.Cards |})
+                       Total = calculateCardValue player.Cards |})
                 |> List.toArray
 
             let commonFields =
@@ -547,10 +523,10 @@ let getUserCardsHandler userId : HttpHandler =
                           
                           DealerTotal =
                             if gameState.DealerCards.IsEmpty then 0
-                            else handValue [(List.last gameState.DealerCards)]
+                            else calculateCardValue [(List.last gameState.DealerCards)]
                           FirstDealerCard =
                             if gameState.DealerCards.IsEmpty then null
-                            else cardToString (List.last gameState.DealerCards)
+                            else (List.last gameState.DealerCards)
                           RoundEndTime = gameState.RoundEndTime |> Option.defaultValue 0L }
                 else
                     LOAD_RESULTS
@@ -562,7 +538,7 @@ let getUserCardsHandler userId : HttpHandler =
                           CurrentlyConnectedPlayers = players
                           DealerTotal = commonFields.DealerTotal
 
-                          AllDealerCards = gameState.DealerCards |> List.map cardToString |> List.toArray
+                          AllDealerCards = gameState.DealerCards |> List.toArray
                           PlayerResults = convertPlayerCards gameState.Results
                           RoundStartTime = gameState.RoundStartTime |> Option.defaultValue 0L }
 
