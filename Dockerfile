@@ -10,7 +10,7 @@ RUN yarn install --frozen-lockfile
 
 # Copy web source and build
 COPY web/ ./
-ENV URL=localhost:8080
+ENV URL=cards.joebad.com
 RUN yarn build
 
 # F# build stage
