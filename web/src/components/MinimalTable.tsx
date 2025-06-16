@@ -1,5 +1,9 @@
-import { useState, useEffect } from 'react';
-import { useBlackjackState, usePlayerName } from '../services/App/AppHook';
+import { useState, useEffect, useCallback } from 'react';
+import {
+  useBlackjackActions,
+  useBlackjackState,
+  usePlayerName,
+} from '../services/App/AppHook';
 import { Button, Card, Typography } from '@material-tailwind/react';
 import { PlayCard } from './Card';
 
@@ -22,12 +26,18 @@ function formatNumber(num: number): string {
 
 export default function MinimalTable(props: {
   gameState: ReturnType<typeof useBlackjackState>;
-  hit: () => void;
 }) {
+  const actions = useBlackjackActions();
   const gameState = props.gameState.currentGameState;
   const [countdown, setCountdown] = useState(0);
   const playerName = usePlayerName();
   const [standing, setStanding] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  const hit = useCallback(() => {
+    setLoading(true);
+    actions.hit().then(() => setLoading(false));
+  }, [playerName]);
 
   const formatCard = card => `${card.rank}${card.suit[0].toUpperCase()}`;
 
@@ -57,42 +67,159 @@ export default function MinimalTable(props: {
     return null;
   }
 
-  const getDealerStatus = () => {
-    if (gameState.dealerScore === 21) {
-      return { text: 'BLACKJACK!', color: 'text-yellow-300' };
+  const getStatusBadge = () => {
+    if (currentPlayerHand.state === 'win') {
+      return (
+        <span className="inline-flex items-center px-1 py-1 rounded text-xs font-semibold bg-green-100 text-green-800 border border-green-300">
+          WIN
+        </span>
+      );
     }
-    if ((gameState?.dealerScore ?? 0) > 21) {
-      return { text: 'BUST', color: 'text-red-500' };
+
+    if (currentPlayerHand.state === 'loss') {
+      return (
+        <span className="inline-flex items-center px-1 py-1 rounded text-xs font-semibold bg-red-100 text-red-800 border border-red-300">
+          LOSS
+        </span>
+      );
     }
+
+    if (currentPlayerHand.score === 21) {
+      return (
+        <span className="inline-flex items-center px-1 py-1 rounded text-xs font-semibold bg-yellow-100 text-yellow-800 border border-yellow-300">
+          BLACKJACK!
+        </span>
+      );
+    }
+
+    if (currentPlayerHand.score > 21) {
+      return (
+        <span className="inline-flex items-center px-1 py-1 rounded text-xs font-semibold bg-red-100 text-red-800 border border-red-300">
+          BUST
+        </span>
+      );
+    }
+
+    if (currentPlayerHand.score === gameState.dealerScore) {
+      return (
+        <span className="inline-flex items-center px-1 py-1 rounded text-xs font-semibold bg-blue-100 text-blue-800 border border-blue-300">
+          PUSH
+        </span>
+      );
+    }
+
     if (gameState.gameStatus === 'game_ended') {
-      return { text: 'STAND', color: 'textx-yellow-300' };
+      return (
+        <span className="inline-flex items-center px-1 py-1 rounded text-xs font-semibold bg-blue-100 text-blue-800 border border-blue-300">
+          STAND
+        </span>
+      );
     }
+
+    return null;
+  };
+
+  const getDealerBadge = (score: number) => {
+    if (currentPlayerHand?.state === 'loss') {
+      return (
+        <span className="inline-flex items-center px-1 py-1 rounded text-xs font-semibold bg-green-100 text-green-800 border border-green-300">
+          WIN
+        </span>
+      );
+    }
+
+    if (currentPlayerHand?.state === 'win') {
+      return (
+        <span className="inline-flex items-center px-1 py-1 rounded text-xs font-semibold bg-red-100 text-red-800 border border-red-300">
+          LOSS
+        </span>
+      );
+    }
+
+    if (gameState.dealerScore === 21) {
+      return (
+        <span className="inline-flex items-center px-1 py-1 rounded text-xs font-semibold bg-yellow-100 text-yellow-800 border border-yellow-300">
+          BLACKJACK!
+        </span>
+      );
+    }
+
+    if (gameState.dealerScore > 21) {
+      return (
+        <span className="inline-flex items-center px-1 py-1 rounded text-xs font-semibold bg-red-100 text-red-800 border border-red-300">
+          BUST
+        </span>
+      );
+    }
+
+    if (currentPlayerHand?.score === gameState.dealerScore) {
+      return (
+        <span className="inline-flex items-center px-1 py-1 rounded text-xs font-semibold bg-blue-100 text-blue-800 border border-blue-300">
+          PUSH
+        </span>
+      );
+    }
+
+    if (gameState.gameStatus === 'game_ended') {
+      return (
+        <span className="inline-flex items-center px-1 py-1 rounded text-xs font-semibold bg-blue-100 text-blue-800 border border-blue-300">
+          STAND
+        </span>
+      );
+    }
+
     return null;
   };
 
   const getPlayerStatus = hand => {
+
     if (hand.score === 21) {
-      return { text: 'BLACKJACK!', color: 'text-yellow-300' };
+      return (
+        <span className="inline-flex items-center px-1 py-1 rounded text-xs font-semibold bg-yellow-100 text-yellow-800 border border-yellow-300">
+          BLACKJACK!
+        </span>
+      );
     }
     if (hand.score > 21) {
-      return { text: 'BUST', color: 'text-red-500' };
+      return (
+        <span className="inline-flex items-center px-1 py-1 rounded text-xs font-semibold bg-red-100 text-red-800 border border-red-300">
+          LOSS
+        </span>
+      );
     }
-    if (hand.state) {
-      if (hand.state === 'win') {
-        return { text: 'WIN', color: 'text-green-300' };
-      } else if (hand.state === 'loss') {
-        return { text: 'LOSS', color: 'text-red-500' };
-      } else if (hand.state === 'push') {
-        return { text: 'PUSH', color: 'text-yellow-300' };
-      }
+
+    if (gameState.dealerScore > 21  && gameState.gameStatus === "game_ended") {
+      return (
+        <span className="inline-flex items-center px-1 py-1 rounded text-xs font-semibold bg-green-100 text-green-800 border border-green-300">
+          WIN
+        </span>
+      );
     }
-    if (hand.state === 'standing') {
-      return { text: 'STAND', color: 'text-yellow-300' };
+    if (hand.score > gameState.dealerScore  && gameState.gameStatus === "game_ended") {
+      return (
+        <span className="inline-flex items-center px-1 py-1 rounded text-xs font-semibold bg-green-100 text-green-800 border border-green-300">
+          WIN
+        </span>
+      );
     }
+    if (hand.score === gameState.dealerScore && gameState.gameStatus === "game_ended") {
+      return (
+        <span className="inline-flex items-center px-1 py-1 rounded text-xs font-semibold bg-blue-100 text-blue-800 border border-blue-300">
+          PUSH
+        </span>
+      );
+    }
+
+    if(gameState.gameStatus === "game_ended") {
+      return (
+        <span className="inline-flex items-center px-1 py-1 rounded text-xs font-semibold bg-red-100 text-red-800 border border-red-300">
+          LOSS
+        </span>
+      );
+    }
+
     return null;
   };
-
-  const dealerStatus = getDealerStatus();
 
   const getCountdownText = () => {
     // @ts-ignore
@@ -109,16 +236,18 @@ export default function MinimalTable(props: {
   const countdownText = getCountdownText();
 
   const currentPlayerHand = gameState?.playerHands?.[playerName];
-  const playerStatus = getPlayerStatus(currentPlayerHand ?? {});
   const otherPlayers = Object.entries(gameState?.playerHands ?? {}).filter(
     ([playerId]) => playerId !== playerName
   );
 
+  console.log(currentPlayerHand?.state);
   const disableButtons =
+    standing ||
+    loading ||
     gameState.gameStatus === 'game_ended' ||
-    (currentPlayerHand &&
-      (playerStatus?.text === 'BUST' || playerStatus?.text === 'BLACKJACK!')) ||
-    standing;
+    currentPlayerHand?.score >= 21 ||
+    currentPlayerHand?.state == 'win' ||
+    currentPlayerHand?.state == 'loss';
 
   return (
     <div className="flex flex-col p-6 bg-green-800 text-white max-w-4xl mx-auto rounded-lg max-w-[1000px] h-full items-start">
@@ -136,13 +265,9 @@ export default function MinimalTable(props: {
                     {gameState.dealerScore}
                   </Typography>
                 )}
-                {dealerStatus && (
-                  <p
-                    className={`${dealerStatus.color} text-sm pl-2 align-left font-semibold`}
-                  >
-                    {dealerStatus.text}
-                  </p>
-                )}
+                <div className="pl-2">
+                  {getDealerBadge(gameState.dealerScore)}
+                </div>
               </div>
 
               {countdownText && (
@@ -162,7 +287,7 @@ export default function MinimalTable(props: {
           </div>
           <Card className="min-h-[240px] rounded-none bg-[transparent] flex flex-col p-5 bg-[var(--color-green-700)]">
             <div className="flex items-center mb-3">
-              <Typography color="white" className='truncate' variant="h6">
+              <Typography color="white" className="truncate" variant="h6">
                 {playerName} (You)
               </Typography>
               <p className="pl-2 text-white">{'\u2665'}</p>
@@ -183,19 +308,7 @@ export default function MinimalTable(props: {
                       />
                     ))}
                   </div>
-                  <div>
-                    {(() => {
-                      return (
-                        playerStatus && (
-                          <p
-                            className={`${playerStatus.color} text-sm font-semibold`}
-                          >
-                            {playerStatus.text}
-                          </p>
-                        )
-                      );
-                    })()}
-                  </div>
+                  <div>{getStatusBadge()}</div>
                 </div>
               )}
             </div>
@@ -214,7 +327,7 @@ export default function MinimalTable(props: {
                 color="green"
                 className="w-full px-4 py-3 roundeds"
                 disabled={disableButtons}
-                onClick={props.hit}
+                onClick={hit}
               >
                 HIT
               </Button>
@@ -233,7 +346,6 @@ export default function MinimalTable(props: {
         {otherPlayers.length > 0 && (
           <div className="flex justify-center items-center gap-4 flex-wrap mt-5">
             {otherPlayers.map(([playerId, hand]: any) => {
-              const playerStatus = getPlayerStatus(hand);
               return (
                 <Card className="rounded-none bg-[transparent] flex flex-col bg-[var(--color-green-700)]">
                   <div key={playerId} className="bg-opacity-20 p-3">
@@ -254,13 +366,7 @@ export default function MinimalTable(props: {
                         />
                       ))}
                     </div>
-                    <div className="">
-                      {playerStatus && (
-                        <p className={`${playerStatus.color} text-xs`}>
-                          {playerStatus.text}
-                        </p>
-                      )}
-                    </div>
+                    {getPlayerStatus(hand)}
                   </div>
                 </Card>
               );

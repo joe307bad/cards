@@ -301,7 +301,7 @@ const makeGameWebSocketServiceLive = Layer.effect(
 
               loadResults.playerResults.forEach(result => {
                 gameState.playerHands[result.userId] = {
-                  cards: result.cards.map(convertCardCodeToCard),
+                  cards: result.cards.map(convertCardCodeToCard).reverse(),
                   score: result.total,
                   state: result.result.toLowerCase(),
                 };
@@ -321,7 +321,7 @@ const makeGameWebSocketServiceLive = Layer.effect(
 
               loadRound.currentlyConnectedPlayers.forEach(result => {
                 gameState.playerHands[result.userId] = {
-                  cards: result.cards.map(convertCardCodeToCard),
+                  cards: result.cards.map(convertCardCodeToCard).reverse(),
                   score: result.total,
                   state: result?.result?.toLowerCase(),
                 };
