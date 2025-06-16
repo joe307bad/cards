@@ -56,6 +56,12 @@ type PlayerCards =
 type Round =
     { Environment: LightningEnvironment
       Database: LightningDatabase }
+    interface IDisposable with
+        member this.Dispose() =
+            try
+                this.Environment.Dispose()
+            with
+            | ex -> printfn "Error disposing environment: %s" ex.Message
 
 type GameState =
     { RoundActive: bool
@@ -67,7 +73,6 @@ type GameState =
       BlackjackRound: Round
       Results: PlayerCards list option }
 
-
 let getDbPath () =
     if Directory.Exists("/app/data/") then
         "/app/data/blackjack.db"
@@ -76,6 +81,7 @@ let getDbPath () =
 
 let webSocketUsers = new ConcurrentDictionary<WebSocket, string>()
 
+// Initialize the BlackJack round ONCE and reuse it
 let initializeBlackJackRound () =
     let getDbPath () =
         if Directory.Exists("/app/data/") then
@@ -89,29 +95,29 @@ let initializeBlackJackRound () =
 
     let db =
         use txn = env.BeginTransaction()
-
         let database =
             txn.OpenDatabase(configuration = DatabaseConfiguration(Flags = DatabaseOpenFlags.Create))
-
-        txn.TruncateDatabase(database) |> ignore
-
         txn.Commit() |> ignore
         database
 
     { Environment = env; Database = db }
 
 let getDealerDbPath () =
-        if Directory.Exists("/app/data/") then
-            "/app/data/blackjack_dealer_db"
-        else
-            "./blackjack_dealer_db"
+    if Directory.Exists("/app/data/") then
+        "/app/data/blackjack_dealer_db"
+    else
+        "./blackjack_dealer_db"
+
+// Create a single instance of the BlackJack round that will be reused
+let globalBlackjackRound = initializeBlackJackRound ()
+
 let mutable gameState =
     { RoundActive = true
       RoundStartTime = Some 0
       RoundEndTime = Some 0
       DealerCards = []
       Dealer = initializeDealer (getDealerDbPath())
-      BlackjackRound = initializeBlackJackRound ()
+      BlackjackRound = globalBlackjackRound  // Use the global instance
       DealerTotal = 0
       Results = None }
 
@@ -142,6 +148,12 @@ let handValue cards =
 
     adjustForAces total aces
 
+// Clear the database instead of creating a new one
+let clearBlackjackDatabase () =
+    use txn = gameState.BlackjackRound.Environment.BeginTransaction()
+    txn.TruncateDatabase(gameState.BlackjackRound.Database) |> ignore
+    txn.Commit() |> ignore
+
 let savePlayerCards userId cards =
     use txn = gameState.BlackjackRound.Environment.BeginTransaction()
     use db = txn.OpenDatabase()
@@ -159,9 +171,7 @@ let savePlayerCards userId cards =
     txn.Commit() |> ignore
 
 let loadAllPlayerCards () =
-
     use txn = gameState.BlackjackRound.Environment.BeginTransaction()
-
     use cursor = txn.CreateCursor gameState.BlackjackRound.Database
     let mutable playerCardsList: PlayerCards list = []
 
@@ -254,22 +264,33 @@ let dealInitialCards userId =
 let hitPlayer userId =
     match loadPlayerCards userId with
     | Some(player: PlayerCards) ->
-        let stopwatch = System.Diagnostics.Stopwatch.StartNew()
-        let newCard = dealCard gameState.Dealer
-        stopwatch.Stop()
-        let updatedCards = newCard :: player.Cards
-        savePlayerCards userId updatedCards
-        let updatedPlayer = { player with Cards = updatedCards }
+        let playerTotal = handValue player.Cards;
 
-        printfn
-            "🃏 Player %s hit - got card %d in %dms - Hand: %A (Total: %d)"
-            userId
-            newCard
-            stopwatch.ElapsedMilliseconds
-            updatedCards
-            (handValue updatedCards)
+        let blackjackResult: BlackjackResult option =
+                    if playerTotal > 21 then Some Loss
+                    elif playerTotal = 21 then Some Win
+                    else None
 
-        Some updatedPlayer
+        match blackjackResult with
+        | Some _ -> 
+            None
+        | None ->
+            let stopwatch = System.Diagnostics.Stopwatch.StartNew()
+            let newCard = dealCard gameState.Dealer
+            stopwatch.Stop()
+            let updatedCards = newCard :: player.Cards
+            savePlayerCards userId updatedCards
+            let updatedPlayer = { player with Cards = updatedCards }
+
+            printfn
+                "🃏 Player %s hit - got card %d in %dms - Hand: %A (Total: %d)"
+                userId
+                newCard
+                stopwatch.ElapsedMilliseconds
+                updatedCards
+                (handValue updatedCards)
+
+            Some updatedPlayer
     | _ -> None
 
 let playDealerHand providedCards =
@@ -286,6 +307,10 @@ let playDealerHand providedCards =
 
 let startNewRound () =
     printfn "🎲 NEW ROUND STARTING!"
+    
+    // Clear the database instead of creating a new environment
+    clearBlackjackDatabase ()
+    
     let card1 = dealCard gameState.Dealer
     let card2 = dealCard gameState.Dealer
     let cards = [ cardToString card1; cardToString card2 ]
@@ -301,7 +326,7 @@ let startNewRound () =
           DealerTotal = handValue [ card1; card2 ]
           RoundStartTime = None
           RoundEndTime = Some roundEndTime
-          BlackjackRound = initializeBlackJackRound ()
+          BlackjackRound = gameState.BlackjackRound  // Reuse the existing round
           Dealer = gameState.Dealer
           Results = None }
 
@@ -619,7 +644,15 @@ let main args =
     printfn "🎲 Blackjack server starting..."
     startNewRound()
     
+    // Register cleanup handler
+    System.AppDomain.CurrentDomain.ProcessExit.Add(fun _ ->
+        printfn "🛑 Server shutting down, cleaning up resources..."
+        try
+            gameTimer.Dispose()
+            (globalBlackjackRound :> IDisposable).Dispose()
+        with
+        | ex -> printfn "Error during cleanup: %s" ex.Message
+    )
+    
     run app
-
-    gameTimer.Dispose()
     0
