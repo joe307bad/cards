@@ -607,6 +607,9 @@ let webApp =
         post "/hit" hitHandler
         getf "/cards/%s" getUserCardsHandler
         get "/ws" websocketHandler
+        get "/health" (fun _ ctx -> 
+            ctx.WriteJsonAsync {| status = "healthy"; timestamp = DateTime.UtcNow |}
+        )
     }
 
 JsonConvert.DefaultSettings <- fun () ->
