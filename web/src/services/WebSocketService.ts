@@ -10,8 +10,8 @@ import {
 
 type CardCode = string;
 export type Card = {
-  suit: 'hearts' | 'diamonds' | 'clubs' | 'spades';
-  rank:
+  readonly suit: 'hearts' | 'diamonds' | 'clubs' | 'spades' | string;
+  readonly rank:
     | 'A'
     | '2'
     | '3'
@@ -24,7 +24,8 @@ export type Card = {
     | '10'
     | 'J'
     | 'Q'
-    | 'K';
+    | 'K'
+    | string;
 };
 
 export function convertCardCodeToCard(cardCode: CardCode): Card {

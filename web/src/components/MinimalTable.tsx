@@ -5,7 +5,8 @@ import {
   usePlayerName,
 } from '../services/App/AppHook';
 import { Button, Card, Typography } from '@material-tailwind/react';
-import { PlayCard } from './Card';
+import CardDeck from './CardScene';
+import ShimmerButton from './Button';
 
 function formatNumber(num: number): string {
   const absNum = Math.abs(num);
@@ -172,7 +173,6 @@ export default function MinimalTable(props: {
   };
 
   const getPlayerStatus = hand => {
-
     if (hand.score === 21) {
       return (
         <span className="inline-flex items-center px-1 py-1 rounded text-xs font-semibold bg-yellow-100 text-yellow-800 border border-yellow-300">
@@ -188,21 +188,27 @@ export default function MinimalTable(props: {
       );
     }
 
-    if (gameState.dealerScore > 21  && gameState.gameStatus === "game_ended") {
+    if (gameState.dealerScore > 21 && gameState.gameStatus === 'game_ended') {
       return (
         <span className="inline-flex items-center px-1 py-1 rounded text-xs font-semibold bg-green-100 text-green-800 border border-green-300">
           WIN
         </span>
       );
     }
-    if (hand.score > gameState.dealerScore  && gameState.gameStatus === "game_ended") {
+    if (
+      hand.score > gameState.dealerScore &&
+      gameState.gameStatus === 'game_ended'
+    ) {
       return (
         <span className="inline-flex items-center px-1 py-1 rounded text-xs font-semibold bg-green-100 text-green-800 border border-green-300">
           WIN
         </span>
       );
     }
-    if (hand.score === gameState.dealerScore && gameState.gameStatus === "game_ended") {
+    if (
+      hand.score === gameState.dealerScore &&
+      gameState.gameStatus === 'game_ended'
+    ) {
       return (
         <span className="inline-flex items-center px-1 py-1 rounded text-xs font-semibold bg-blue-100 text-blue-800 border border-blue-300">
           PUSH
@@ -210,7 +216,7 @@ export default function MinimalTable(props: {
       );
     }
 
-    if(gameState.gameStatus === "game_ended") {
+    if (gameState.gameStatus === 'game_ended') {
       return (
         <span className="inline-flex items-center px-1 py-1 rounded text-xs font-semibold bg-red-100 text-red-800 border border-red-300">
           LOSS
@@ -240,7 +246,6 @@ export default function MinimalTable(props: {
     ([playerId]) => playerId !== playerName
   );
 
-  console.log(currentPlayerHand?.state);
   const disableButtons =
     standing ||
     loading ||
@@ -276,16 +281,9 @@ export default function MinimalTable(props: {
                 </div>
               )}
             </div>
-            <div className="flex">
-              {gameState?.dealerHand?.map((card, i) => (
-                <PlayCard
-                  key={`${formatCard(card)}_${i}`}
-                  card={formatCard(card)}
-                />
-              ))}
-            </div>
+              <CardDeck cards={gameState.dealerHand ?? []} />
           </div>
-          <Card className="min-h-[240px] rounded-none bg-[transparent] flex flex-col p-5 bg-[var(--color-green-700)]">
+          <Card className="min-h-[247px] rounded-none bg-[transparent] flex flex-col p-5 bg-[var(--color-green-700)]">
             <div className="flex items-center mb-3">
               <Typography color="white" className="truncate" variant="h6">
                 {playerName} (You)
@@ -300,32 +298,25 @@ export default function MinimalTable(props: {
             <div className="flex-1">
               {currentPlayerHand && (
                 <div>
-                  <div className="flex mb-[5px]">
-                    {currentPlayerHand.cards.map((card, i) => (
-                      <PlayCard
-                        key={formatCard(card)}
-                        card={formatCard(card)}
-                      />
-                    ))}
-                  </div>
-                  <div>{getStatusBadge()}</div>
+                  <CardDeck cards={currentPlayerHand.cards ?? []} />
+                  <div className="pt-2">{getStatusBadge()}</div>
                 </div>
               )}
             </div>
             <div className="flex flex-row gap-3 min-w-24 self-end w-full">
               <Button
-                variant="filled"
-                color="blue"
-                className="w-full px-4 py-3 roundeds"
+                variant="gradient"
+                color="teal"
+                className="w-[50%] px-4 text-md py-3 roundeds"
                 disabled={disableButtons}
                 onClick={() => setStanding(true)}
               >
                 STAND
               </Button>
               <Button
-                variant="filled"
-                color="green"
-                className="w-full px-4 py-3 roundeds"
+                variant="gradient"
+                color="blue"
+                className="w-[50%] px-4 text-md py-3 roundeds"
                 disabled={disableButtons}
                 onClick={hit}
               >
@@ -358,15 +349,10 @@ export default function MinimalTable(props: {
                         {hand.score}
                       </Typography>
                     </div>
-                    <div className="flex gap-1 flex-wrap mb-2">
-                      {hand.cards.map((card, i) => (
-                        <PlayCard
-                          key={formatCard(card)}
-                          card={formatCard(card)}
-                        />
-                      ))}
-                    </div>
-                    {getPlayerStatus(hand)}
+                     <CardDeck cards={hand.cards ?? []} />
+                     <div className='pt-2'>
+                      {getPlayerStatus(hand)}
+                     </div>
                   </div>
                 </Card>
               );
