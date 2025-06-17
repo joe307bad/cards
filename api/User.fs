@@ -3,14 +3,21 @@ open LightningDB
 open System.Text
 open System.Text.Json
 open Newtonsoft.Json
+open System.IO
 
 type UserData = { Wins: int }
 
 let private UserDataDbName = "user_data"
 let private UserKeysDbName = "user_keys"
 
+let getDbPath () =
+        if Directory.Exists("/app/data/") then
+            "/app/data/blackjack_user_db"
+        else
+            "./blackjack_user_db"
+
 let private env =
-    let e = new LightningEnvironment "blackjack_user_db"
+    let e = new LightningEnvironment (getDbPath ())
     e.MaxDatabases <- 2
     e.Open()
     e
