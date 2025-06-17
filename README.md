@@ -1,6 +1,11 @@
-# cards.joebad.com
+<div align="center">
+  <img src="./thumbnail.png" alt="cards.joebad.com" width="500">
 
-A blackjack game
+# cards.joebad.com
+</div>
+
+
+Cozy card games. For now: a new blackjack game every 15 seconds.
 
 ## Project Structure
 

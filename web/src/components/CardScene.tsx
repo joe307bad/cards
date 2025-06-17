@@ -5,7 +5,7 @@ export default function CardDeck({
 }: {
   cards: readonly { readonly rank: string; readonly suit: string }[];
 }) {
-  const [visibleCards, setVisibleCards] = useState([]);
+  const [visibleCards, setVisibleCards] = useState<readonly { readonly rank: string; readonly suit: string }[]>([]);
 
   useEffect(() => {
     if (cards.length > visibleCards.length) {
