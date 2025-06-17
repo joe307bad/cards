@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import {
   useBlackjackState,
   usePlayerName,
@@ -10,12 +10,13 @@ export function App() {
   const state = useBlackjackState();
   const ws = useWsService();
   const playerName = usePlayerName();
+  const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
     if (playerName) {
-      ws.connect();
+      ws.connect().then(() => setLoaded(true));
     }
   }, [playerName]);
 
-  return <MinimalTable gameState={state} />;
+  return loaded && <MinimalTable gameState={state} />;
 }
