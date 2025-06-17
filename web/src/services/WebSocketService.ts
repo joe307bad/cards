@@ -10,8 +10,8 @@ import {
 
 type CardCode = string;
 export type Card = {
-  suit: 'hearts' | 'diamonds' | 'clubs' | 'spades';
-  rank:
+  readonly suit: 'hearts' | 'diamonds' | 'clubs' | 'spades' | string;
+  readonly rank:
     | 'A'
     | '2'
     | '3'
@@ -24,7 +24,8 @@ export type Card = {
     | '10'
     | 'J'
     | 'Q'
-    | 'K';
+    | 'K'
+    | string;
 };
 
 export function convertCardCodeToCard(cardCode: CardCode): Card {
@@ -231,6 +232,7 @@ export interface GameState {
   countdownTo: number;
   remaingingCards: number;
   totalStartingCards: number;
+  wins: number;
 }
 
 export type GameStateSnapshot = {
@@ -249,13 +251,14 @@ const gameWebSocketState = proxy({
     dealerHand: [],
     dealerScore: 0,
     deck: [],
-    gameStatus: '',
+    gameStatus: 'game_ended',
     roundStartTime: 0,
     roundEndTime: 0,
     countdownTo: 0,
     remaingingCards: 0,
     totalStartingCards: 0,
-  } as unknown as GameState,
+    wins: 0,
+  } as GameState,
   lastError: null as Error | null,
   ws: null as WebSocket | null,
 });
@@ -298,6 +301,7 @@ const makeGameWebSocketServiceLive = Layer.effect(
               gameState.gameStatus = 'game_ended';
               gameState.remaingingCards = loadResults.remainingCards;
               gameState.totalStartingCards = loadResults.totalStartingCards;
+              gameState.wins = loadResults.wins;
 
               loadResults.playerResults.forEach(result => {
                 gameState.playerHands[result.userId] = {
@@ -318,6 +322,7 @@ const makeGameWebSocketServiceLive = Layer.effect(
               gameState.gameStatus = 'playing';
               gameState.totalStartingCards = loadRound.totalStartingCards;
               gameState.remaingingCards = loadRound.remainingCards;
+              gameState.wins = loadRound.wins;
 
               loadRound.currentlyConnectedPlayers.forEach(result => {
                 gameState.playerHands[result.userId] = {
@@ -380,8 +385,17 @@ const makeGameWebSocketServiceLive = Layer.effect(
                       gameState.gameStatus = 'game_ended';
 
                       processed.playerResults.forEach(result => {
+                        if (
+                          result.UserId === playerName &&
+                          result.Result.toLowerCase() === 'win'
+                        ) {
+                          gameState.wins++;
+                        }
+
                         gameState.playerHands[result.UserId] = {
-                          cards: result.Cards.map(convertCardCodeToCard).reverse(),
+                          cards: result.Cards.map(
+                            convertCardCodeToCard
+                          ).reverse(),
                           score: result.Total,
                           state: result.Result.toLowerCase(),
                         };

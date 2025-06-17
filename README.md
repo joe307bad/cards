@@ -1,6 +1,11 @@
-# cards.joebad.com
+<div align="center">
+  <img src="./thumbnail.png" alt="cards.joebad.com" width="500">
 
-A blackjack game
+# cards.joebad.com
+</div>
+
+
+Cozy card games. For now: a new blackjack game every 15 seconds.
 
 ## Project Structure
 
@@ -45,7 +50,7 @@ cards/
    dotnet run
    ```
 
-The API will start on `https://localhost:8080`
+The API will start on `https://localhost:5001`
 
 ### Running the Web Frontend
 
@@ -84,10 +89,10 @@ docker build -t blackjack-app .
 
 ```bash
 # Run with database persistence
-docker run -d -p 8080:8080 -v blackjack-data:/app/data blackjack-app
+docker run -d -p 5001:5001 -v blackjack-data:/app/data blackjack-app
 ```
 
-The application will be available at `http://localhost:8080`.
+The application will be available at `http://localhost:5001`.
 
 ### Docker Volume
 
