@@ -1,12 +1,12 @@
 // TODO this doesnt load anything that was persisted after server reboot and just recreates on boot every time
 // TODO resume the last shuffled deck on reboot
 // TODO Keep track of what card type is dealt so its a realistic 40,000 card deck
-module HighSpeedCardDealer
+module Dealer
 
 open System
 open LightningDB
-
-type Card = string
+open Types
+open System.IO
 
 type DealerState =
     { Environment: LightningEnvironment
@@ -35,66 +35,50 @@ let private createShuffledDeck () = // 40,000 decks
         cards.[j] <- temp
     cards
 
-let calculateCardValue (cards: Card list) =
-    let getCardValue (card: Card) =
-        let rank = card.Substring(0, card.Length - 1)
-        match rank with
-        | "A" -> 11
-        | "J" | "Q" | "K" -> 10
-        | "10" -> 10
-        | n -> int n
-    
-    let rec adjustForAces total aces =
-        if total > 21 && aces > 0 then
-            adjustForAces (total - 10) (aces - 1)
+
+let getDbPath () =
+        if Directory.Exists("/app/data/") then
+            "/app/data/blackjack_dealer_db"
         else
-            total
-    
-    let values = cards |> List.map getCardValue
-    let total = List.sum values
-    let aces = cards |> List.filter (fun c -> c.StartsWith("A")) |> List.length
-    adjustForAces total aces
+            "./blackjack_dealer_db"
 
-let initializeDealer (dbPath: string) =
-    let env = new LightningEnvironment(dbPath)
-    env.MaxDatabases <- 1
-    env.MapSize <- 1073741824L // 1GB
-    env.Open(EnvironmentOpenFlags.WriteMap ||| EnvironmentOpenFlags.MapAsync)
-    
-    let db =
-        use txn = env.BeginTransaction()
-        let database =
-            txn.OpenDatabase(configuration = DatabaseConfiguration(Flags = DatabaseOpenFlags.Create))
-        txn.Commit() |> ignore
-        database
-    
-    { Environment = env
-      Database = db
-      ShuffledCards = createShuffledDeck ()
-      CurrentIndex = 0
-      DealtCount = 0UL }
+let env = new LightningEnvironment(getDbPath ())
+env.MaxDatabases <- 1
+env.MapSize <- 1073741824L // 1GB
+env.Open(EnvironmentOpenFlags.WriteMap ||| EnvironmentOpenFlags.MapAsync)
 
-let dealCard (state: DealerState) =
-    if state.CurrentIndex >= state.ShuffledCards.Length then
+let db =
+    use txn = env.BeginTransaction()
+    let database =
+        txn.OpenDatabase(configuration = DatabaseConfiguration(Flags = DatabaseOpenFlags.Create))
+    txn.Commit() |> ignore
+    database
+    
+let shuffledCards = createShuffledDeck ()
+let mutable currentIndex = 0
+let mutable dealtCount = 0UL
+
+let dealCard () =
+    if currentIndex >= shuffledCards.Length then
         failwith "No more cards to deal"
     
-    let card = state.ShuffledCards.[state.CurrentIndex]
-    state.CurrentIndex <- state.CurrentIndex + 1
-    state.DealtCount <- state.DealtCount + 1UL
+    let card = shuffledCards.[currentIndex]
+    currentIndex <- currentIndex + 1
+    dealtCount <- dealtCount + 1UL
     
-    use txn = state.Environment.BeginTransaction(TransactionBeginFlags.NoSync)
-    let key = BitConverter.GetBytes(state.DealtCount)
+    use txn = env.BeginTransaction(TransactionBeginFlags.NoSync)
+    let key = BitConverter.GetBytes(dealtCount)
     let value = System.Text.Encoding.UTF8.GetBytes(card)
-    txn.Put(state.Database, key, value, PutOptions.NoOverwrite) |> ignore
+    txn.Put(db, key, value, PutOptions.NoOverwrite) |> ignore
     txn.Commit() |> ignore
     
     card
 
-let dealCards (state: DealerState) (count: int) =
-    Array.init count (fun _ -> dealCard state)
+let dealCards count =
+    Array.init count (fun _ -> dealCard)
 
-let getRemainingCards (state: DealerState) =
-    state.ShuffledCards.Length - state.CurrentIndex
+let getRemainingCards () =
+    shuffledCards.Length - currentIndex
 
 let getDealtCount (state: DealerState) = state.DealtCount
 
