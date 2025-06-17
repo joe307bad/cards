@@ -310,7 +310,7 @@ export default function MinimalTable(props: {
             </div>
             <div className="flex flex-row gap-3 min-w-24 self-end w-full">
               <Button
-                variant="gradient"
+                variant="filled"
                 color="teal"
                 className="w-[50%] px-4 text-md py-3 roundeds"
                 disabled={disableButtons}
@@ -319,7 +319,7 @@ export default function MinimalTable(props: {
                 STAND
               </Button>
               <Button
-                variant="gradient"
+                variant="filled"
                 color="blue"
                 className="w-[50%] px-4 text-md py-3 roundeds"
                 disabled={disableButtons}
