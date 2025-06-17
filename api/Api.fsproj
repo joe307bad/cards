@@ -5,6 +5,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="Dealer.fs" />
+    <Compile Include="User.fs" />
     <Compile Include="Test.fs" />
     <Compile Include="App.fs" />
   </ItemGroup>

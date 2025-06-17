@@ -20,7 +20,7 @@ export type GetUserCardsResponse =
   | GetUserCardsErrorResponse;
 
 export interface IBlackjackService {
-  hit: (url: string, userId: string) => Effect.Effect<void, Error>;
+  hit: (url: string, userId: string, secretKey: string) => Effect.Effect<void, Error>;
   get: (url: string, userId: string) => Effect.Effect<GameResponse, Error>;
 }
 
@@ -61,6 +61,7 @@ interface LoadRoundData {
   firstDealerCard: string;
   roundEndTime: number;
   dealerTotal: number;
+  wins: number;
 }
 
 interface LoadResultsData {
@@ -80,6 +81,7 @@ interface LoadResultsData {
     result: string;
   }>;
   roundStartTime: number;
+  wins: number;
 }
 
 interface GameResponse {
@@ -111,7 +113,7 @@ function getLoadResultsData(response: GameResponse): LoadResultsData | null {
 }
 
 const blackjackServiceLive = Layer.succeed(BlackjackService, {
-  hit: (url: string, userId: string) =>
+  hit: (url: string, userId: string, secretKey: string) =>
     Effect.tryPromise({
       try: async () => {
         const response = await fetch(
@@ -123,6 +125,7 @@ const blackjackServiceLive = Layer.succeed(BlackjackService, {
             },
             body: JSON.stringify({
               UserId: userId,
+              SecretKey: secretKey
             }),
           }
         );

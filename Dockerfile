@@ -49,16 +49,16 @@ RUN mkdir -p /app/data && chown -R app:app /app/data
 
 # Set environment variables
 ENV ASPNETCORE_ENVIRONMENT=Production
-ENV ASPNETCORE_URLS=http://+:8080
+ENV ASPNETCORE_URLS=http://+:5001
 ENV LANG=C.UTF-8
 ENV LC_ALL=C.UTF-8
 
 # Expose port
-EXPOSE 8080
+EXPOSE 5001
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD curl -f http://localhost:8080/health || exit 1
+  CMD curl -f http://localhost:5001/health || exit 1
 
 # Start the application
 ENTRYPOINT ["dotnet", "Api.dll"]

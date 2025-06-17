@@ -9,3 +9,4 @@ api/wwwroot
 *.mdb
 blackjack_db
 blackjack_dealer_db
+blackjack_user_db

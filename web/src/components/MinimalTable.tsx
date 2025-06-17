@@ -5,7 +5,7 @@ import {
   usePlayerName,
 } from '../services/App/AppHook';
 import { Button, Card, Typography } from '@material-tailwind/react';
-import { PlayCard } from './Card';
+import CardDeck from './CardScene';
 
 function formatNumber(num: number): string {
   const absNum = Math.abs(num);
@@ -39,8 +39,6 @@ export default function MinimalTable(props: {
     actions.hit().then(() => setLoading(false));
   }, [playerName]);
 
-  const formatCard = card => `${card.rank}${card.suit[0].toUpperCase()}`;
-
   useEffect(() => {
     if (!gameState?.countdownTo) return;
 
@@ -70,7 +68,7 @@ export default function MinimalTable(props: {
   const getStatusBadge = () => {
     if (currentPlayerHand.state === 'win') {
       return (
-        <span className="inline-flex items-center px-1 py-1 rounded text-xs font-semibold bg-green-100 text-green-800 border border-green-300">
+        <span className="ml-2 inline-flex items-center px-1 py-1 rounded text-xs font-semibold bg-green-100 text-green-800 border border-green-300">
           WIN
         </span>
       );
@@ -78,7 +76,7 @@ export default function MinimalTable(props: {
 
     if (currentPlayerHand.state === 'loss') {
       return (
-        <span className="inline-flex items-center px-1 py-1 rounded text-xs font-semibold bg-red-100 text-red-800 border border-red-300">
+        <span className="ml-2 inline-flex items-center px-1 py-1 rounded text-xs font-semibold bg-red-100 text-red-800 border border-red-300">
           LOSS
         </span>
       );
@@ -86,7 +84,7 @@ export default function MinimalTable(props: {
 
     if (currentPlayerHand.score === 21) {
       return (
-        <span className="inline-flex items-center px-1 py-1 rounded text-xs font-semibold bg-yellow-100 text-yellow-800 border border-yellow-300">
+        <span className="ml-2 inline-flex items-center px-1 py-1 rounded text-xs font-semibold bg-yellow-100 text-yellow-800 border border-yellow-300">
           BLACKJACK!
         </span>
       );
@@ -94,7 +92,7 @@ export default function MinimalTable(props: {
 
     if (currentPlayerHand.score > 21) {
       return (
-        <span className="inline-flex items-center px-1 py-1 rounded text-xs font-semibold bg-red-100 text-red-800 border border-red-300">
+        <span className="ml-2 inline-flex items-center px-1 py-1 rounded text-xs font-semibold bg-red-100 text-red-800 border border-red-300">
           BUST
         </span>
       );
@@ -102,7 +100,7 @@ export default function MinimalTable(props: {
 
     if (currentPlayerHand.score === gameState.dealerScore) {
       return (
-        <span className="inline-flex items-center px-1 py-1 rounded text-xs font-semibold bg-blue-100 text-blue-800 border border-blue-300">
+        <span className="ml-2 inline-flex items-center px-1 py-1 rounded text-xs font-semibold bg-blue-100 text-blue-800 border border-blue-300">
           PUSH
         </span>
       );
@@ -110,7 +108,7 @@ export default function MinimalTable(props: {
 
     if (gameState.gameStatus === 'game_ended') {
       return (
-        <span className="inline-flex items-center px-1 py-1 rounded text-xs font-semibold bg-blue-100 text-blue-800 border border-blue-300">
+        <span className="ml-2 inline-flex items-center px-1 py-1 rounded text-xs font-semibold bg-blue-100 text-blue-800 border border-blue-300">
           STAND
         </span>
       );
@@ -119,7 +117,11 @@ export default function MinimalTable(props: {
     return null;
   };
 
-  const getDealerBadge = (score: number) => {
+  const getDealerBadge = () => {
+    if (gameState.gameStatus !== 'game_ended') {
+      return  null
+    }
+
     if (currentPlayerHand?.state === 'loss') {
       return (
         <span className="inline-flex items-center px-1 py-1 rounded text-xs font-semibold bg-green-100 text-green-800 border border-green-300">
@@ -172,7 +174,6 @@ export default function MinimalTable(props: {
   };
 
   const getPlayerStatus = hand => {
-
     if (hand.score === 21) {
       return (
         <span className="inline-flex items-center px-1 py-1 rounded text-xs font-semibold bg-yellow-100 text-yellow-800 border border-yellow-300">
@@ -188,21 +189,27 @@ export default function MinimalTable(props: {
       );
     }
 
-    if (gameState.dealerScore > 21  && gameState.gameStatus === "game_ended") {
+    if (gameState.dealerScore > 21 && gameState.gameStatus === 'game_ended') {
       return (
         <span className="inline-flex items-center px-1 py-1 rounded text-xs font-semibold bg-green-100 text-green-800 border border-green-300">
           WIN
         </span>
       );
     }
-    if (hand.score > gameState.dealerScore  && gameState.gameStatus === "game_ended") {
+    if (
+      hand.score > gameState.dealerScore &&
+      gameState.gameStatus === 'game_ended'
+    ) {
       return (
         <span className="inline-flex items-center px-1 py-1 rounded text-xs font-semibold bg-green-100 text-green-800 border border-green-300">
           WIN
         </span>
       );
     }
-    if (hand.score === gameState.dealerScore && gameState.gameStatus === "game_ended") {
+    if (
+      hand.score === gameState.dealerScore &&
+      gameState.gameStatus === 'game_ended'
+    ) {
       return (
         <span className="inline-flex items-center px-1 py-1 rounded text-xs font-semibold bg-blue-100 text-blue-800 border border-blue-300">
           PUSH
@@ -210,7 +217,7 @@ export default function MinimalTable(props: {
       );
     }
 
-    if(gameState.gameStatus === "game_ended") {
+    if (gameState.gameStatus === 'game_ended') {
       return (
         <span className="inline-flex items-center px-1 py-1 rounded text-xs font-semibold bg-red-100 text-red-800 border border-red-300">
           LOSS
@@ -240,7 +247,6 @@ export default function MinimalTable(props: {
     ([playerId]) => playerId !== playerName
   );
 
-  console.log(currentPlayerHand?.state);
   const disableButtons =
     standing ||
     loading ||
@@ -248,6 +254,7 @@ export default function MinimalTable(props: {
     currentPlayerHand?.score >= 21 ||
     currentPlayerHand?.state == 'win' ||
     currentPlayerHand?.state == 'loss';
+  const players = Object.keys(gameState?.playerHands).length;
 
   return (
     <div className="flex flex-col p-6 bg-green-800 text-white max-w-4xl mx-auto rounded-lg max-w-[1000px] h-full items-start">
@@ -265,9 +272,7 @@ export default function MinimalTable(props: {
                     {gameState.dealerScore}
                   </Typography>
                 )}
-                <div className="pl-2">
-                  {getDealerBadge(gameState.dealerScore)}
-                </div>
+                <div className="pl-2">{getDealerBadge()}</div>
               </div>
 
               {countdownText && (
@@ -276,56 +281,47 @@ export default function MinimalTable(props: {
                 </div>
               )}
             </div>
-            <div className="flex">
-              {gameState?.dealerHand?.map((card, i) => (
-                <PlayCard
-                  key={`${formatCard(card)}_${i}`}
-                  card={formatCard(card)}
-                />
-              ))}
-            </div>
+            <CardDeck cards={gameState.dealerHand} />
           </div>
-          <Card className="min-h-[240px] rounded-none bg-[transparent] flex flex-col p-5 bg-[var(--color-green-700)]">
-            <div className="flex items-center mb-3">
-              <Typography color="white" className="truncate" variant="h6">
+          <Card className="min-h-[230px] rounded-none bg-[transparent] flex flex-col p-5 bg-[var(--color-green-700)]">
+            <div className="flex mb-3">
+              <span className="mr-2 inline-flex items-center px-1 py-1 rounded text-xs font-semibold bg-indigo-100 text-indigo-800 border border-indigo-300">
+                {gameState.wins}
+              </span>{' '}
+              <Typography
+                color="white"
+                className="truncate flex-1"
+                variant="h6"
+              >
                 {playerName} (You)
               </Typography>
-              <p className="pl-2 text-white">{'\u2665'}</p>
-              {currentPlayerHand && (
-                <Typography className="pl-2" color="white" variant="h6">
-                  {currentPlayerHand.score}
-                </Typography>
-              )}
+              <div className="flex items-center">
+                <span className="ml-2 inline-flex items-center px-1 py-1 rounded text-xs font-semibold bg-cyan-100 text-cyan-800 border border-cyan-300">
+                  {currentPlayerHand?.score ?? 0}
+                </span>
+                {currentPlayerHand && getStatusBadge()}
+              </div>
             </div>
+
             <div className="flex-1">
               {currentPlayerHand && (
-                <div>
-                  <div className="flex mb-[5px]">
-                    {currentPlayerHand.cards.map((card, i) => (
-                      <PlayCard
-                        key={formatCard(card)}
-                        card={formatCard(card)}
-                      />
-                    ))}
-                  </div>
-                  <div>{getStatusBadge()}</div>
-                </div>
+                <CardDeck cards={currentPlayerHand?.cards} />
               )}
             </div>
             <div className="flex flex-row gap-3 min-w-24 self-end w-full">
               <Button
-                variant="filled"
-                color="blue"
-                className="w-full px-4 py-3 roundeds"
+                variant="gradient"
+                color="teal"
+                className="w-[50%] px-4 text-md py-3 roundeds"
                 disabled={disableButtons}
                 onClick={() => setStanding(true)}
               >
                 STAND
               </Button>
               <Button
-                variant="filled"
-                color="green"
-                className="w-full px-4 py-3 roundeds"
+                variant="gradient"
+                color="blue"
+                className="w-[50%] px-4 text-md py-3 roundeds"
                 disabled={disableButtons}
                 onClick={hit}
               >
@@ -335,12 +331,15 @@ export default function MinimalTable(props: {
           </Card>
         </div>
         <div className="justify-between flex pt-5 w-full max-w-[500px]">
-          <span className="bg-purple-600 text-white text-sm text-sm px-3 py-1 rounded font-medium">
-            {Object.keys(gameState?.playerHands).length} / 10k players
+          <span className="bg-purple-600 text-white text-sm text-xs px-3 py-1 rounded font-medium">
+            {players} player{players > 1 ? 's' : players == 0 ? 's' : ''} dealt
+            in
           </span>
-          <span className="bg-indigo-600 text-white text-sm text-sm px-3 py-1 rounded font-medium ml-2">
-            {formatNumber(gameState?.remaingingCards)} /{' '}
-            {formatNumber(gameState?.totalStartingCards)} cards
+          <span className="bg-indigo-600 text-white text-sm text-xs px-3 py-1 rounded font-medium ml-2">
+            {(
+              gameState?.totalStartingCards - gameState?.remaingingCards
+            ).toLocaleString()}{' '}
+            cards dealt
           </span>
         </div>
         {otherPlayers.length > 0 && (
@@ -358,15 +357,8 @@ export default function MinimalTable(props: {
                         {hand.score}
                       </Typography>
                     </div>
-                    <div className="flex gap-1 flex-wrap mb-2">
-                      {hand.cards.map((card, i) => (
-                        <PlayCard
-                          key={formatCard(card)}
-                          card={formatCard(card)}
-                        />
-                      ))}
-                    </div>
-                    {getPlayerStatus(hand)}
+                    <CardDeck cards={hand.cards ?? []} />
+                    <div className="pt-2">{getPlayerStatus(hand)}</div>
                   </div>
                 </Card>
               );

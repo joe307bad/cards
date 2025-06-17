@@ -11,23 +11,26 @@ import { useSnapshot } from 'valtio';
 import services from '../Services';
 import { gameWebSocketState } from '../WebSocketService';
 
-function generateRandomName(): string {
+function generateRandomName(): { name: string; key: string } {
   // Generate elaborate name components
   const firstName = faker.person.firstName();
   const middleName = faker.person.middleName();
   const lastName = faker.person.lastName();
   const suffix = faker.person.suffix();
-  
+
   // Create the elaborate name
   const elaborateName = `${firstName} ${middleName} ${lastName} ${suffix}`;
-  
+
   // Replace spaces with hyphens and convert to lowercase
   const baseName = elaborateName.replace(/\s+/g, '-').toLowerCase();
-  
+
   // Generate 5 character alphanumeric suffix
-  const randomSuffix = faker.string.alphanumeric({ length: 5, casing: 'lower' });
-  
-  return `${baseName}-${randomSuffix}`;
+  const randomSuffix = faker.string.alphanumeric({
+    length: 5,
+    casing: 'lower',
+  });
+
+  return { name: `${baseName}-${randomSuffix}`, key: faker.string.uuid() };
 }
 
 const getStoredPlayerName = (): string | null => {
@@ -38,10 +41,19 @@ const storePlayerName = (name: string): void => {
   localStorage.setItem('blackjack-player-name', name);
 };
 
+const getSecretKey = (): string | null => {
+  return localStorage.getItem('blackjack-secret-key');
+};
+
+const storeSecretKey = (name: string): void => {
+  localStorage.setItem('blackjack-secret-key', name);
+};
+
 type BlackjackContextType = {
   blackjack: typeof services.blackjackService;
   gs: typeof services.gameService;
   playerName: string;
+  secretKey: string;
 };
 
 const BlackjackContext = createContext<BlackjackContextType | null>(null);
@@ -54,22 +66,29 @@ export const BlackjackProvider: React.FC<BlackjackProviderProps> = ({
   children,
 }) => {
   const [playerName, setPlayerName] = useState<string>('');
+  const [secretKey, setSecretKey] = useState<string>('');
 
   useEffect(() => {
     let storedName = getStoredPlayerName();
+    let secretKey = getSecretKey();
 
-    if (!storedName) {
-      storedName = generateRandomName();
+    if (!storedName || !secretKey) {
+      const { name, key } = generateRandomName();
+      storedName = name;
+      secretKey = key;
       storePlayerName(storedName);
+      storeSecretKey(secretKey);
     }
 
     setPlayerName(storedName);
+    setSecretKey(secretKey);
   }, []);
 
   const value: BlackjackContextType = {
     blackjack: services.blackjackService,
     gs: services.gameService,
     playerName,
+    secretKey,
   };
 
   return (
@@ -87,7 +106,7 @@ const useWsService = () => {
 
   const connect = async () => {
     await Effect.runPromise(
-        //@ts-ignore
+      //@ts-ignore
       context.gs.connect(process.env.URL, context.playerName)
     );
   };
@@ -120,8 +139,10 @@ const useBlackjackActions = () => {
   }
 
   const hit = async () => {
+    await Effect.runPromise(
     //@ts-ignore
-    await Effect.runPromise(service.hit(process.env.URL, context.playerName));
+      service.hit(process.env.URL, context.playerName, context.secretKey)
+    );
   };
 
   const get = async (playerName: string) => {
@@ -129,11 +150,7 @@ const useBlackjackActions = () => {
     return Effect.runPromise(service.get(process.env.URL, playerName));
   };
 
-  return {
-    hit,
-    get,
-    playerName: context.playerName,
-  };
+  return { hit, get };
 };
 
 const usePlayerName = (): string => {
