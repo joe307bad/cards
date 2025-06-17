@@ -66,23 +66,23 @@ export default function MinimalTable(props: {
   }
 
   const getStatusBadge = () => {
-    // if (currentPlayerHand.state === 'win') {
-    //   return (
-    //     <span className="ml-2 inline-flex items-center px-1 py-1 rounded text-xs font-semibold bg-green-100 text-green-800 border border-green-300">
-    //       WIN
-    //     </span>
-    //   );
-    // }
+    if (currentPlayerHand.state === 'win') {
+      return (
+        <span className="ml-2 inline-flex items-center px-1 py-1 rounded text-xs font-semibold bg-green-100 text-green-800 border border-green-300">
+          WIN
+        </span>
+      );
+    }
 
-    // if (currentPlayerHand.state === 'loss') {
-    //   return (
-    //     <span className="ml-2 inline-flex items-center px-1 py-1 rounded text-xs font-semibold bg-red-100 text-red-800 border border-red-300">
-    //       LOSS
-    //     </span>
-    //   );
-    // }
+    if (currentPlayerHand.state === 'loss') {
+      return (
+        <span className="ml-2 inline-flex items-center px-1 py-1 rounded text-xs font-semibold bg-red-100 text-red-800 border border-red-300">
+          LOSS
+        </span>
+      );
+    }
 
-    if (true) {
+    if (currentPlayerHand.score === 21) {
       return (
         <span className="ml-2 inline-flex items-center px-1 py-1 rounded text-xs font-semibold bg-yellow-100 text-yellow-800 border border-yellow-300">
           BLACKJACK!
@@ -117,7 +117,11 @@ export default function MinimalTable(props: {
     return null;
   };
 
-  const getDealerBadge = (score: number) => {
+  const getDealerBadge = () => {
+    if (gameState.gameStatus !== 'game_ended') {
+      return  null
+    }
+
     if (currentPlayerHand?.state === 'loss') {
       return (
         <span className="inline-flex items-center px-1 py-1 rounded text-xs font-semibold bg-green-100 text-green-800 border border-green-300">
@@ -126,7 +130,7 @@ export default function MinimalTable(props: {
       );
     }
 
-    if (true) {
+    if (currentPlayerHand?.state === 'win') {
       return (
         <span className="inline-flex items-center px-1 py-1 rounded text-xs font-semibold bg-red-100 text-red-800 border border-red-300">
           LOSS
@@ -265,12 +269,10 @@ export default function MinimalTable(props: {
                 <p className="pl-2">{'\u2660'}</p>
                 {gameState.dealerScore > 0 && (
                   <Typography className="pl-2" color="white" variant="h5">
-                    {17}
+                    {gameState.dealerScore}
                   </Typography>
                 )}
-                <div className="pl-2">
-                  {getDealerBadge(17)}
-                </div>
+                <div className="pl-2">{getDealerBadge()}</div>
               </div>
 
               {countdownText && (
@@ -279,7 +281,7 @@ export default function MinimalTable(props: {
                 </div>
               )}
             </div>
-            <CardDeck cards={[{rank: "K", suit: "hearts"},{rank: "7", suit: "spades"}]} />
+            <CardDeck cards={gameState.dealerHand} />
           </div>
           <Card className="min-h-[230px] rounded-none bg-[transparent] flex flex-col p-5 bg-[var(--color-green-700)]">
             <div className="flex mb-3">
@@ -295,15 +297,15 @@ export default function MinimalTable(props: {
               </Typography>
               <div className="flex items-center">
                 <span className="ml-2 inline-flex items-center px-1 py-1 rounded text-xs font-semibold bg-cyan-100 text-cyan-800 border border-cyan-300">
-                  {21}
+                  {currentPlayerHand?.score ?? 0}
                 </span>
-                {getStatusBadge()}
+                {currentPlayerHand && getStatusBadge()}
               </div>
             </div>
 
             <div className="flex-1">
               {currentPlayerHand && (
-            <CardDeck cards={[{rank: "A", suit: "spades"},{rank: "J", suit: "hearts"}]} />
+                <CardDeck cards={currentPlayerHand?.cards} />
               )}
             </div>
             <div className="flex flex-row gap-3 min-w-24 self-end w-full">

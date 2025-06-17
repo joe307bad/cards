@@ -652,6 +652,7 @@ let configureServices (services: IServiceCollection) =
 let app =
     application {
         use_router webApp
+        url "http://localhost:5001"
         use_static "wwwroot"
         service_config (fun services -> configureServices (services))
 
