@@ -123,7 +123,7 @@ export default function MinimalTable(props: {
       return  null
     }
 
-    if (gameState.dealerScore === 21) {
+    if (gameState.dealerScore === 21 && gameState.dealerHand.length === 2) {
       return (
         <span className="inline-flex items-center px-1 py-1 rounded text-xs font-semibold bg-yellow-100 text-yellow-800 border border-yellow-300">
           BLACKJACK!
@@ -175,13 +175,14 @@ export default function MinimalTable(props: {
   };
 
   const getPlayerStatus = hand => {
-    if (hand.score === 21) {
+    if (hand.score === 21 && hand.cards.length === 2) {
       return (
         <span className="inline-flex items-center px-1 py-1 rounded text-xs font-semibold bg-yellow-100 text-yellow-800 border border-yellow-300">
           BLACKJACK!
         </span>
       );
     }
+
     if (hand.score > 21) {
       return (
         <span className="inline-flex items-center px-1 py-1 rounded text-xs font-semibold bg-red-100 text-red-800 border border-red-300">
@@ -197,6 +198,7 @@ export default function MinimalTable(props: {
         </span>
       );
     }
+
     if (
       hand.score > gameState.dealerScore &&
       gameState.gameStatus === 'game_ended'
