@@ -3,7 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { ThemeProvider } from '@material-tailwind/react';
 import './styles/index.css';
 import { App } from './App';
-import { BlackjackProvider } from './services/App/AppHook';
+import { BlackjackProvider } from './hooks/AppHook';
 
 const container = document.getElementById('root');
 if (!container) throw new Error('Root element not found');

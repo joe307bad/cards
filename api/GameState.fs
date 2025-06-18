@@ -9,7 +9,6 @@ type Game =
       RoundEndTime: int64 option
       Results: PlayerCards list option }
 
-
 let mutable gameState =
     { RoundActive = true
       RoundStartTime = Some 0

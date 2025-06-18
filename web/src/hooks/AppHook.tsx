@@ -8,23 +8,19 @@ import React, {
 import { faker } from '@faker-js/faker';
 import { Effect } from 'effect';
 import { useSnapshot } from 'valtio';
-import services from '../Services';
-import { gameWebSocketState } from '../WebSocketService';
+import services from '../services/Services';
+import { gameState } from '../services/GameService';
 
 function generateRandomName(): { name: string; key: string } {
-  // Generate elaborate name components
   const firstName = faker.person.firstName();
   const middleName = faker.person.middleName();
   const lastName = faker.person.lastName();
   const suffix = faker.person.suffix();
 
-  // Create the elaborate name
   const elaborateName = `${firstName} ${middleName} ${lastName} ${suffix}`;
 
-  // Replace spaces with hyphens and convert to lowercase
   const baseName = elaborateName.replace(/\s+/g, '-').toLowerCase();
 
-  // Generate 5 character alphanumeric suffix
   const randomSuffix = faker.string.alphanumeric({
     length: 5,
     casing: 'lower',
@@ -125,7 +121,7 @@ const useBlackjackService = (): typeof services.blackjackService => {
 };
 
 const useBlackjackState = () => {
-  return useSnapshot(gameWebSocketState);
+  return useSnapshot(gameState);
 };
 
 const useBlackjackActions = () => {
