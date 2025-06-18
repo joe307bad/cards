@@ -3,7 +3,7 @@ import {
   useBlackjackState,
   usePlayerName,
   useWsService,
-} from './services/App/AppHook';
+} from './hooks/AppHook';
 import MinimalTable from './components/MinimalTable';
 
 export function App() {
