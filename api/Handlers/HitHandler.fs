@@ -3,14 +3,15 @@ module HitHandler
 open Giraffe
 open Saturn
 open Newtonsoft.Json
-open GameState
-open Blackjack
-open BlackjackUserDb
-open Types
+
 open Utils.calculateCardValue
-open Dealer
 open Utils.createPlayerResponse
 open Socket
+open Types
+open GameState
+open Blackjack
+open Player
+open Dealer
 
 let dealAndUpdate userId =
     let card1 = dealCard ()

@@ -4,6 +4,7 @@ open System.IO
 open LightningDB
 open Newtonsoft.Json
 open System
+
 open Types
 open Utils.calculateCardValue
 
@@ -19,12 +20,12 @@ type Round =
                 printfn "Error disposing environment: %s" ex.Message
 
 let getDbPath () =
-        if Directory.Exists("/app/data/") then
+        if Directory.Exists "/app/data/" then
             "/app/data/blackjack_db"
         else
             "./blackjack_db"
 
-let userCardsKey userId = sprintf "user_cards_%s" userId
+let userCardsKey (userId: string) = sprintf "user_cards_%s" userId
 
 let env = new LightningEnvironment(getDbPath ())
 env.MaxDatabases <- 1

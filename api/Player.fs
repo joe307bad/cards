@@ -1,7 +1,7 @@
-module BlackjackUserDb
+module Player
+
 open LightningDB
 open System.Text
-open System.Text.Json
 open Newtonsoft.Json
 open System.IO
 

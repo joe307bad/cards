@@ -5,14 +5,18 @@ open Microsoft.Extensions.DependencyInjection
 open Giraffe
 open Saturn
 open Newtonsoft.Json
-open Dealer
-open BlackjackUserDb
-open Types
-open Blackjack
+
 open Socket
 open Utils.OptionConverter
 open Utils.calculateCardValue
+
 open GameState
+
+open Types
+open Dealer
+open Player
+open Blackjack
+
 open HitHandler
 open GetUserCardsHandler
 open WebSocketHandler
@@ -21,7 +25,7 @@ let totalStartingCards = totalCards
 let roundCountdown = 10
 let nextRoundWaitTime = 5
 let mutable _roundCountdown = roundCountdown
-let mutable newRoundCountdown = 0
+let mutable _nextRoundWaitTime = 0
 
 let playDealerHand providedCards =
     let rec dealerPlay cards =
@@ -59,7 +63,7 @@ let startNewRound () =
           Results = None }
 
     _roundCountdown <- roundCountdown
-    newRoundCountdown <- 0
+    _nextRoundWaitTime <- 0
 
     broadcastMessage
         {| Type = "new_round"
@@ -126,7 +130,7 @@ let endRound () =
            RoundStartTime = roundStartTime
            Results = convertPlayerCards (Some results) |}
 
-    newRoundCountdown <- nextRoundWaitTime
+    _nextRoundWaitTime <- nextRoundWaitTime
 
 let gameTimer =
     new Timer(
@@ -138,11 +142,11 @@ let gameTimer =
 
                     if _roundCountdown <= 0 then
                         endRound ()
-                elif newRoundCountdown > 0 then
-                    printfn "🕐 Next round starts in %d seconds..." newRoundCountdown
-                    newRoundCountdown <- newRoundCountdown - 1
+                elif _nextRoundWaitTime > 0 then
+                    printfn "🕐 Next round starts in %d seconds..." _nextRoundWaitTime
+                    _nextRoundWaitTime <- _nextRoundWaitTime - 1
 
-                    if newRoundCountdown = 0 then
+                    if _nextRoundWaitTime = 0 then
                         startNewRound ()
             with ex ->
                 printfn "Timer error: %s" ex.Message
@@ -199,7 +203,7 @@ let main args =
     startNewRound ()
 
     // Register cleanup handler
-    System.AppDomain.CurrentDomain.ProcessExit.Add(fun _ ->
+    AppDomain.CurrentDomain.ProcessExit.Add(fun _ ->
         printfn "🛑 Server shutting down, cleaning up resources..."
 
         try

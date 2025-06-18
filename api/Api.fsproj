@@ -6,13 +6,14 @@
   <ItemGroup>
     <Compile Include="Types.fs" />
     <Compile Include="GameState.fs" />
+    <Compile Include="Utils/isBlackjack.fs" />
     <Compile Include="Utils/calculateCardValue.fs" />
     <Compile Include="Utils/createPlayerResponse.fs" />
     <Compile Include="Utils/OptionConverter.fs" />
     <Compile Include="Utils/WebSocket.fs" />
     <Compile Include="Blackjack.fs" />
     <Compile Include="Dealer.fs" />
-    <Compile Include="User.fs" />
+    <Compile Include="Player.fs" />
     <Compile Include="Handlers/WebSocketHandler.fs" />
     <Compile Include="Handlers/GetUserCardsHandler.fs" />
     <Compile Include="Handlers/HitHandler.fs" />

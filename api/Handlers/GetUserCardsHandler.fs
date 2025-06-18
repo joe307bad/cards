@@ -2,13 +2,15 @@ module GetUserCardsHandler
 
 open Giraffe
 open Saturn
-open Blackjack
+
 open Utils.createPlayerResponse
 open Utils.calculateCardValue
-open BlackjackUserDb
+open Utils.isBlackjack
 open Types
+open Blackjack
 open GameState
 open Dealer
+open Player
 
 type LoadRoundData =
     { UserId: string
@@ -25,7 +27,8 @@ type LoadRoundData =
       FirstDealerCard: string
       RoundEndTime: int64
       DealerTotal: int
-      Wins: int }
+      Wins: int
+      IsBlackjack: bool }
 
 type LoadResultsData =
     { UserId: string
@@ -49,12 +52,12 @@ type LoadResultsData =
                  Result: string |}
            >
       RoundStartTime: int64
-      Wins: int }
+      Wins: int
+      IsBlackJack: bool }
 
 type GameResponse =
     | LOAD_ROUND of LoadRoundData
     | LOAD_RESULTS of LoadResultsData
-
 
 let convertPlayerCards
     (playerCardsOpt: option<list<PlayerCards>>)
@@ -110,7 +113,8 @@ let getUserCardsHandler userId : HttpHandler =
                    Total = response.Total |> Option.defaultValue 0
                    RemainingCards = response.RemainingCards
                    TotalStartingCards = response.TotalStartingCards
-                   DealerTotal = gameState.DealerTotal |}
+                   DealerTotal = gameState.DealerTotal
+                   IsBlackjack = isBlackjack (response.Cards |> Option.defaultValue List.empty) |}
 
             let gameResponse =
                 if gameState.RoundActive then
@@ -122,6 +126,7 @@ let getUserCardsHandler userId : HttpHandler =
                           TotalStartingCards = commonFields.TotalStartingCards
                           CurrentlyConnectedPlayers = players
                           Wins = wins
+                          IsBlackjack = commonFields.IsBlackjack
 
                           DealerTotal =
                             if gameState.DealerCards.IsEmpty then
@@ -132,7 +137,7 @@ let getUserCardsHandler userId : HttpHandler =
                             if gameState.DealerCards.IsEmpty then
                                 null
                             else
-                                (List.last gameState.DealerCards)
+                                List.last gameState.DealerCards
                           RoundEndTime = gameState.RoundEndTime |> Option.defaultValue 0L }
                 else
                     LOAD_RESULTS
@@ -144,6 +149,7 @@ let getUserCardsHandler userId : HttpHandler =
                           CurrentlyConnectedPlayers = players
                           DealerTotal = commonFields.DealerTotal
                           Wins = wins
+                          IsBlackJack = commonFields.IsBlackjack
 
                           AllDealerCards = gameState.DealerCards |> List.toArray
                           PlayerResults = convertPlayerCards gameState.Results
