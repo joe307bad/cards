@@ -15,7 +15,7 @@ type DealerState =
       mutable CurrentIndex: int
       mutable DealtCount: uint64 }
 
-let totalCards = 2_080_000
+let totalCards = 5_080_000
 
 let private createSingleDeck () =
     let suits = ["H"; "D"; "C"; "S"]
